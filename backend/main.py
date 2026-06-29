@@ -357,6 +357,15 @@ def fetch_twse_realtime_quotes(stocks):
             else:
                 last = _twse_number(item.get("z"))
                 if last is None:
+                    # z is '-' during intraday auction; try best bid price first
+                    bid_str = item.get("b", "")
+                    if bid_str and bid_str != "-":
+                        first_bid = bid_str.split("_")[0]
+                        last = _twse_number(first_bid)
+                if last is None:
+                    # Still no price; try open price
+                    last = _twse_number(item.get("o"))
+                if last is None:
                     last = ref
                 open_val = _twse_number(item.get("o"))
                 high_val = _twse_number(item.get("h"))
