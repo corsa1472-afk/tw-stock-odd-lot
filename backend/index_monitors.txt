@@ -1,0 +1,70 @@
+                    </section>
+
+                    <!-- Card 6: Active Wind-Control Monitors -->
+                    <section class="panel-card glass-panel" id="calc-monitors-card">
+                        <div class="panel-header" style="justify-content: space-between; display: flex; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0;"><i class="fa-solid fa-shield-halved" style="color: var(--color-primary); margin-right: 6px;"></i> 當前模擬風控監控清單</h2>
+                            <div style="text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);" id="monitor-count-label">共 0 檔監控中</span>
+                                <span style="font-size: 0.65rem; color: var(--color-warning);" id="monitor-frequency-label" data-tooltip="後端風控背景執行緒每 20 秒向 Yahoo Finance 下載最新價格進行即時止損/止利監控"><i class="fa-solid fa-arrows-rotate"></i> 監控價格每 20 秒自動刷新</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container" style="margin-top: 1rem;">
+                            <table class="stock-table" id="monitors-table" style="font-size: 0.825rem;">
+                                <thead>
+                                    <tr>
+                                        <th>個股</th>
+                                        <th>買入價 / 數量</th>
+                                        <th>即時價</th>
+                                        <th>風控條件<br><span style="font-size: 0.75em; color: var(--text-muted); font-weight: normal;">停損 / 停利</span></th>
+                                        <th>狀態</th>
+                                        <th class="actions-col">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monitors-table-body">
+                                    <tr class="table-placeholder">
+                                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                            <i class="fa-solid fa-folder-open" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block; color: rgba(255,255,255,0.15);"></i>
+                                            無進行中的風控監控項目
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- Card 7: Trailing Stop/Profit Monitors -->
+                    <section class="panel-card glass-panel" id="trailing-monitors-card" style="margin-top: 1rem;">
+                        <div class="panel-header" style="justify-content: space-between; display: flex; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0; color: #10b981;"><i class="fa-solid fa-money-bill-trend-up" style="margin-right: 6px;"></i> 移動停損停利監控清單</h2>
+                            <div style="text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);" id="trailing-monitor-count-label">共 0 檔監控中</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container" style="margin-top: 1rem;">
+                            <table class="stock-table" id="trailing-monitors-table" style="font-size: 0.825rem;">
+                                <thead>
+                                    <tr>
+                                        <th>個股</th>
+                                        <th>買入價 / 數量</th>
+                                        <th>基準/即時價</th>
+                                        <th>移動條件<br><span style="font-size: 0.75em; color: var(--text-muted); font-weight: normal;">停損 / 停利</span></th>
+                                        <th>狀態</th>
+                                        <th class="actions-col">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trailing-monitors-table-body">
+                                    <tr class="table-placeholder">
+                                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                            <i class="fa-solid fa-folder-open" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block; color: rgba(255,255,255,0.15);"></i>
+                                            無進行中的移動停損項目
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                </div>

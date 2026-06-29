@@ -1,0 +1,718 @@
+# 開發進度與驗證報告 (Walkthrough)
+
+本文件摘要已完成之變更、系統架1. **個股處置狀態整合顯示**：
+   - **前端實作**：在右側個股詳細資訊與進場訊號卡片（Card 1）中，當所選個股被處置時，系統會自動在右上角股名旁邊顯式呈現「處置股」的紅色警示徽章，並移除了預設隱藏類別（`hidden`）。
+   - **處置詳情浮動提示 (Tooltip) 支援**：當滑鼠懸停或手機觸控「處置股」徽章時，會顯示詳細處置內容（包括：處置期間、處置措施與處置原因）。
+   - **載入防閃爍處理**：在用戶切換個股或載入新數據前，自動清空並隱藏前一檔股票的處置標記與 Tooltip 提示，待新數據加載完畢後再動態套用，確保畫面流暢自然。
+   - **處置資訊亂碼修復**：修正了後端 `fetch_disposition_stocks` 對 TWSE/TPEx OpenAPI 回傳 JSON 的解析方式，移除先前不正確的 `big5` 解碼嘗試，統一改採內建的 `r.json()` 以 utf-8 解碼 JSON 資料，徹底解決了處置原因和處置措施的中文亂碼問題。
+   - **股票清單股名前置「處」字徽章**：在 **熱門強勢股 (Tab A)** 與 **底部潛力股 (Tab B)** 的表格渲染邏輯中，若個股處於處置狀態，會在股名前方自動加註紅底白字的微型 **「處」** 徽章，並且該徽章也直接載入了對應處置資訊（期間、措施、原因）的 Tooltip 懸浮提示，供使用者在清單中快速閱覽處置狀態，不需點進詳情卡片。
+   懸停或手機觸控「處置股」徽章時，會顯示詳細處置內容（包括：處置期間、處置措施與處置原因）。
+   - **載入防閃爍處理**：在用戶切換個股或載入新數據前，自動清空並隱藏前一檔股票的處置標記與 Tooltip 提示，待新數據加載完畢後再動態套用，確保畫面流暢自然。
+   - **處置資訊亂碼修復**：修正了後端 `fetch_disposition_stocks` 對 TWSE/TPEx OpenAPI 回傳 JSON 的解析方式，移除先前不正確的 `big5` 解碼嘗試，統一改採內建的 `r.json()` 以 utf-8 解碼 JSON 資料，徹底解決了處置原因和處置措施的中文亂碼問題。
+   
+2. **本機服務重啟與 Cloudflare Tunnel / Firebase Hosting 同步部署**：
+   - 本地 Python FastAPI 後端伺服器已於背景成功重啟。
+   - 重啟後的 Cloudflare Tunnel 穿透臨時網址已自動更新於前端 `app.js` 的 `CLOUD_FUNCTION_URL` 中。
+   - 前端已成功發布並部署至 Firebase Hosting：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**。
+
+## 最新優化與修復 (2026-06-13)
+
+我們針對最近收到的五點回饋進行了精準修復：
+1. **60分K KD圖 Y軸優化**：調整圖表 Grid 的左右邊界（`left: 70, right: 70`）防止 Y 軸的 `50 基準` 標籤被裁切，並將 `40 低檔` 標籤位置移動至右側（`position: "end"`），避免左側文字擁擠重疊。
+2. **60分K線圖與 KD 圖比例/Tooltip 同步**：將 60分K線圖與 KD 圖的 Grid 左右邊界設為一致的 `70`，並將 60分K線圖的 Tooltip 字體大小調大為與 KD 圖一樣的 `15px`，以使兩個圖表的排版比例與 Tooltip 大小完美對稱一致。
+3. **倉位風控卡片「歸零」按鈕置左**：移除了「歸零」按鈕的 `margin-right: auto` 行內樣式，使按鈕在 Flex 容器中能夠與其他快捷金額按鈕自然密合靠左對齊，消除不必要的右側大空檔。
+4. **模擬風控監控股名 Tooltip 主要業務補齊**：修改了後端 `get_orders_endpoint`、`get_lists` 及 `place_order_endpoint`，使風控與移動停損的訂單/監控清單資料能動態讀取 Yahoo 奇摩股市基本資料的中文「主要經營業務」，並在前端 `formatStockNameHTML` 中正確呈現中文主要業務 Hover Tooltip。
+5. **全市場掃描新增個股誤植手動修復**：修正了前端 `handleAddTrackFromTable` 在點擊 `+` 時向 `/api/stocks` 發送的 payload，加入 `added_by: "scan"` 參數；同時在後端 `AddStockRequest` 接收模型中補齊 `added_by` 欄位並寫入 `lists.json`，使從掃描結果中新增的個股在追蹤清單中能夠正確顯示為「掃」字圖標，且 Tooltip 為「全市場掃描新增」，不再被誤植為手動加入。
+6. **股票清單符合/未符合綠紅燈標記統一**：重構雙分頁表格的狀態燈號，將「日線趨勢」、「60分K打底」、「底底高」與「進場訊號」在符合時均呈現綠燈（`light-dot green`），未符合時呈現紅燈（`light-dot red`），使畫面燈號邏輯更加精準、直觀、整齊。
+7. **三大法人買賣超 Tooltip 錯字與總量標記修正**：修正了買賣超 Tooltip 內的錯字「買買超」為「買賣超」；並將下方的合計列「三大法人合計買超」修正為「三大法人淨買賣超(總量)」，以更精確對齊淨額口徑。
+8. **籌碼集中度卡片 Tooltip 欄位名稱對齊**：將籌碼集中度圖表 Tooltip 中的「法人合計買賣超」及公式說明中的「三大法人合計買賣超」正名為「三大法人淨買賣超(總量)」，實現跨圖表專有名詞的一致對齊。
+9. **監控清單股名來源標記取消**：在風控監控清單與移動監控清單中，調用 `formatStockNameHTML` 渲染股名時傳入 `false`，取消顯示「手」、「文」、「掃」等來源標籤圖示，使模擬交易歷史與監控表格更為精簡清爽。
+10. **左側清單進場訊號文字取消與 1:1 畫面佈局調整**：移除了「進場訊號」欄位的「符合/未符合」文字，僅保留狀態綠/紅燈以節省空間。配合此縮小，將左右側欄的寬度比例調整為 `1fr 1fr`（1:1 比例），進而拓寬右側卡片與圖表的可視寬度，使報價與法人圖表更為清晰。
+11. **60分K KD 基準與低檔標籤移入圖表內部**：將 `50 基準` 與 `40 低檔` 標籤的顯示位置改為 `insideStartTop` 與 `insideEndTop`（移至圖表內部的左側與右側），並縮減 KD 圖與 K線圖的 outer grid margins 至 `left: 45, right: 45`，使曲線圖完全舒展開來而不重疊/壓線。
+12. **三大法人淨買賣超 Tooltip 加註總買賣額並移除合計列**：後端接口會在 chart-data 響應中自動綁定每日的 Close 收盤價，前端在 Tooltip 內為外資、投信、自營商各大法人動態算出「淨張數」與對應的「台幣估值金額（以億/萬為單位）」，並刪除最下方的「三大法人淨買賣超(總量)」總和列。
+13. **籌碼集中度 Tooltip 文字刪除 (總量) 註記**：將籌碼集中度 Tooltip 第三行的標題以及公式說明統一正名為 `三大法人淨買賣超`，移除 `(總量)` 標記。
+14. **股票清單欄位間距平分優化**：移除了 `index.html` 中 `#stock-table` 的 inline style 寬度，改由 `index.css` 集中控制。在 `index.css` 中，將前 4 欄（代號、股名、股價、成交量）的 `width` 與 `min-width` 加寬（例如股名改為 `16.5%`），並縮減且平均分配第 5 到 8 欄（日線趨勢、60分K打底、進場訊號、底底高）的寬度均為 `7.5%`，解決了前四欄過於擁擠、後四欄間距過寬的排版失衡問題。
+15. **預期與掛單價風暴比 (R值) 語意優化與 Tooltip 新增**：
+    - **動態標籤**：修改了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `updateCalculations`。當使用者在風控計算機中輸入或套用非當前現價的自訂「掛單價」時，風暴比的標題會動態由「預期風暴比 (R值)」更換為 **「掛單價風暴比 (R值)」**，以反映當前是基於掛單價做試算；當重置或切換回現價時則自動回復。
+    - **標頭 Tooltip 補齊**：更新了 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html)，在雙分頁股票清單（熱門強勢股與潛力股）的「預期風暴比 (R值)」表頭欄位旁，補上與計算機同款的浮動 `info` 說明圖標與 Tooltip，便於使用者在清單中能立刻懸停檢視 R 值的賺賠比詳細公式與定義。
+16. **頁面標題警語樣式優化**：修改 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 的警語橫幅，將 `(頁面設計：斌／加工：antigravity2)` 修正為 `［頁面設計：斌｜加工：antigravity2］`。在 HTML 內使用 Flexbox 進行佈局與 `flex-wrap: wrap` 控制，使該文字在電腦端完美靠右對齊；而當視窗縮小至手機尺寸時，此文字會自動優雅地折行並保持靠右對齊，極大提升自適應美感。
+17. **全市場潛力股操作欄文字精簡**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `renderPotentialTable` 中，當股票處於「已追蹤」狀態時，將原先寬度不足而被裁切的「已追蹤」中文文字移除，改以綠色打勾圓圈圖示呈現，並掛載 `data-tooltip="已加入追蹤"` 懸浮提示，實現視覺簡潔且無任何字體截斷。
+18. **進場訊號圖表填滿與基準線對齊壓線**：
+    - **圖表填滿**：將小時K線圖與 KD 指標圖的 Grid margins 從 `left: 45, right: 45` 縮減為 `left: 35, right: 15`，擴大圖表顯示區域，填滿圖形窗格。
+    - **基準線對齊壓線**：將 KD 圖中 `50 基準` 與 `40 低檔` 的 markLine 標籤 `position` 由 `insideStartTop/insideEndTop` 更改為 `insideStart` 與 `insideEnd`，使文字能精準地垂直居中覆蓋（壓在）各自的基準線與低檔虛線上。
+19. **60分K線圖 Tooltip 均線小數位數限制**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中，將 60分K線圖 (併入 SMA60) Tooltip 的均線數值以 `.toFixed(3)` 進行格式化，防止產生過長的小數點位數，使數據展示更加簡潔易讀。
+20. **標題警語說明文案去零股化**：更新了 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 的進場條件第三點描述，將「且當日伴隨零股成交量微幅放大時進場」中的「零股」去除，修正為「且當日伴隨成交量微幅放大時進場」，以使文案口徑更具通用性。
+21. **60分K打底欄位次數全面呈現**：修改了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的表格渲染邏輯，不論個股 60分K KD 狀態為符合（綠燈）或未符合（紅燈），皆一律在欄位中顯式印出具體的黃金交叉次數，若為零則清楚寫出「0次」，避免先前未符合時缺少次數標註的問題。
+22. **進場訊號指示燈外觀修改**：在 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中定義了 `.light-rect`（寬 14px、高 8px、圓角 2px）樣式，並在前端表格渲染中，將「進場訊號」欄位的狀態燈由原先的圓點（`light-dot`）改為長方形燈號（`light-rect`），提供更清晰的視覺識別度。
+23. **多張圖表與風控卡片標題重構**：
+    - 將「建議掛單與今日走勢」標題修改為 **「今日走勢與掛單價設定」**。
+    - 將「建議掛單與前一交易日走勢」標題修改為 **「前一交易日走勢與掛單價設定」**。
+    - 將「近60日籌碼集中度 (%)」標題修改為 **「籌碼集中度(近60日,%)」**。
+24. **日K線圖表新增 SMA60 均線與樣式對齊**：
+    - **新增 SMA60 均線**：在後端 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 的 `chart-data` 路由中，補齊了日線數據的 `SMA60` 移動平均計算；並在前端 ECharts 配置中，將此條均線以青色（#06b6d4）實線畫出，並在 Tooltip 中增加 SMA60 均價項目。
+    - **標頭半形 comma 修正**：將日K線卡片標頭的中文全形逗號「，」改為半形「, 」，並在標題內加上 SMA60 標示。
+    - **圖例同色設定**：將 `renderKlineChart` 中所有線型 series（SMA5、SMA20、SMA60、布林上下軌）的線條顏色由 `lineStyle` 移至 Top-level `color` 屬性定義，使 ECharts 頂部圖例（Legend）的圓點與線條顏色能完美同色對齊，解決了圖例點線顏色不合的問題。
+## 重大 Bug 修復與優化 (最後偵錯與更新)
+
+我們針對使用者報告的「分析錯誤、無法計算與掃描未呈現」問題，進行了精確的排查與修復：
+
+### 1. 修正萬用字元 CORS 阻擋 Bug（修復無法連線與分析錯誤）
+- **問題**：在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 中，`allow_origins=["*"]` 與 `allow_credentials=True` 存在衝突。當使用者在本機瀏覽器使用 `file:///` 協定或不同 Host 訪問時，會引發瀏覽器安全策略阻擋，導致前端 Fetch 請求失敗，拋出 CORS 錯誤並顯示「股價資訊分析錯誤」。
+- **修復**：由於本機系統不涉及 Cookie 或 Session 憑證傳輸，我們將 `allow_credentials` 變更為 `False`。現在瀏覽器不會再阻擋 API 請求，CORS 跨網域連線完全正常。
+
+### 2. 支援非開盤時間/假日全市場掃描（修復掃描數量為 0）
+- **問題**：原先的流動性過濾器直接讀取日線歷史數據的最後一列（`Volume.iloc[-1]`）。若在非交易時段（晚上、清晨、假日或開盤前）進行掃描，當日 Volume 會是 0，導致所有股票皆無法通過「今日成交量 > 500 張」的門檻，因而產生「Found 0 stocks passing filters」的現象。
+- **修復**：在後端下載日線後，自動過濾掉 `Volume <= 0` 的非交易日資料。不論何時掃描，系統都會以**最新一個有效交易日**的成交量作為流動性過濾依據。目前已成功掃描全市場 **1,940 檔** 上市櫃股票，並篩選出 **98 檔** 底部潛力股！
+
+### 3. 修正「底底高（Higher Lows）」數學形態依據
+- **問題**：原先形態過濾器比對的是日線收盤價（`Close`）的波谷。但技術分析中，「底底高」的核心在於「支撐低點的抬升」，即日線最低價（`Low`）。
+- **修復**：將形態比對的數據源改為 `df_daily['Low'].values`，能更精確地捕捉股價拉回時波谷低點（Support levels）逐步墊高的多頭特徵。
+
+### 4. 倉位計算機防崩潰保護（修復右側無法計算）
+- **問題**：部分股票（例如新發行個股、新 ETF 或剛手動新增尚未加載完成的股票）在 Yahoo 財經上缺少半年內的前高數據，導致 `selectedStock.prev_high` 為 `undefined`。當前端嘗試執行 `stopProfit.toFixed(2)` 時會拋出 `TypeError`，導致右側計算機 JS 執行中斷，畫面卡死「無法計算」。
+- **修復**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的計算器更新 `updateCalculations` 及下單預覽 `handlePlaceOrder` 函數中，為 `stopProfit` 加入了防護性防崩潰降級機制：當 `prev_high` 不存在時，自動以 `價格 * 1.1` (即 10% 預期獲利) 作為替代值，防止 JS 中斷，確保計算機隨時可用。
+
+### 5. 補齊 API 欄位對齊
+- 在背景掃描 `scan_single_stock` 回傳字典中補齊了 `hourly_kd_ok` 欄位（對齊 `analyze_single_stock`），避免前端讀取 `reasons` 時顯示 `undefined` 交叉次數。
+
+---
+
+## 視覺與版面配置結構 (Unified Layout with Independent Cards)
+
+```text
++-------------------------------------------------------------------------+
+| [Header] 台股量化選股與風控計算系統                           [Status] Yahoo 數據 |
++-------------------------------------------------------------------------+
+| [Tab Bar]  (Tab A: 熱門股即時追蹤面板)  /  (Tab B: 全市場底部潛力股掘金面板)    |
++---------------------------------------+---------------------------------+
+| <Left Column: 1.3fr>                  | <Right Column: 1fr Flex Cards>  |
+|                                       |                                 |
+|  [Tab A: 熱門個股追蹤清單]             | [獨立卡片 1: 個股訊號與 60分K]   |
+|   - 支援搜尋新增、文字檔批次匯入        |  - 即時報價、均線/KD交叉訊號    |
+|   - 股名動態後置 (手動加入)/(文字加入)  |  - [60分K KD 指標線]            |
+|   - (重刷熱門) 一鍵爬取 Yahoo 最新排行  |  - [60分K線圖 (疊加 SMA60)]     |
+|                                       |                                 |
+|  [Tab B: 全市場底部潛力股掃描]         | [獨立卡片 2: 倉位與風控計算]    |
+|   - 展示通過流動性、均線、底底高之個股  |  - 投入金額、整/零股模式、停損%  |
+|   - 實時背景掃描進度條與重新掃描按鈕  |  - 推薦張/股數、R值風暴比計算  |
+|                                       |  - [一鍵送出模擬風控監控委託]   |
+|                                       |                                 |
+|                                       | [獨立卡片 3: 建議掛單與今日走勢] |
+|                                       |  - 開/高/低/收實時數據透明重疊  |
+|                                       |  - [分時價格折線圖 + 紫色均線]  |
+|                                       |  - [底部橘色分時成交量直方圖]  |
+|                                       |  - 積極/穩健/保守掛單價一鍵套用 |
+|                                       |                                 |
+|                                       | [獨立卡片 4: 日K線技術指標卡]   |
+|                                       |  - 日K線疊加 SMA5、SMA20 均線   |
+|                                       |  - 疊加布林通道 (BBAND) 虛線軌  |
+|                                       |                                 |
+|                                       | [獨立卡片 5: 三大法人買賣超]     |
+|                                       |  - 外資/投信/自營商 20日柱狀圖  |
+|                                       |                                 |
+|                                       | [獨立卡片 6: 當前模擬風控監控]  |
+|                                       |  - 已掛單個股的實時觸價監控表   |
+|                                       |  - 支援手動 (取消監控)          |
++---------------------------------------+---------------------------------+
+```
+
+---
+
+## 最新優化與修復（針對使用者回饋 8 與 9）
+
+我們針對「欄寬沒有自適應、缺少分頁B切換、燈號顯示與新增狀態標記」等問題進行了全面改進：
+
+### 1. 欄寬自適應與表格重繪
+- **問題**：先前 CSS 與 JS 中的欄位寬度固定，且 Tab A（8欄）與 Tab B（7欄）寬度定義不一致，導致多個欄位重疊或對齊錯誤，文字也產生了不必要的換行。
+- **修復**：
+  - 更新 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中對於 `#stock-table` (8欄) 與 `#potential-table` (7欄) 的寬度比例設定，精確分配空間。
+  - 對 `.status-indicator` 與 `.signal-badge` 加上 `white-space: nowrap`，確保「符合/未符合」狀態強制在一整行呈現，字體設定為較小自適應大小防止溢出。
+
+### 2. 雙分頁整合五大策略燈號（帶量突破、價值低估、破前高站穩5MA、動能順勢、均值回歸）
+- **實作**：
+  - 補齊並實作了 `renderStrategyLights` 渲染函數，以綠色/灰色的微型徽章 (`帶`、`估`、`破`、`勢`、`歸`) 呈現，滑鼠懸停 (hover) 時會顯示該指標的具體說明與是否符合狀態。
+  - 在 **Tab A 熱門股即時追蹤** 與 **Tab B 全市場底部潛力股** 中皆整合了此燈號顯示，修復了先前因 ReferenceError 導致系統中斷與 Tab B 缺少此功能的 Bug。
+
+### 3. 重刷熱門提示 `(新增)` 標籤
+- **實作**：
+  - 當點選「重刷熱門」後，後端若發現該股票是在本次重刷時新加入的，會將其 `added_by` 標記為 `new_popular` 並在名稱後加上 `(新增)`。
+  - 前端增加 `formatStockNameHTML` 函數，自動將該後綴轉換為精美的綠色 HTML Badge (`<span class="added-by-badge new-popular">新增</span>`)，替代了原始文字展示。
+
+### 4. 雙分頁個股選取高亮連動
+- **實作**：
+  - 在 `switchTab` 切換邏輯中加入高亮狀態同步機制。當在 Tab A 選取個股後，切換到 Tab B（或反之），若該個股也存在於另一個分頁中，會自動為其加上 `.selected` 高亮類別，維持操作體驗一致。
+
+---
+
+### 5. 模擬風控監視器卡片上移
+- **實作**：將 **「當前模擬風控監控清單」**（Card 6）的位置從右側欄底部，上移至 **「倉位與風控計算」**（Card 2）卡片的正下方。方便使用者在點選模擬委託下單後，立刻在下方查看該部位的價格監控與風控狀態。
+
+### 6. 新增「建議掛單與前一交易日走勢」卡片
+- **實作**：
+  - 在「建議掛單與今日走勢」下方，新增了同等格式的 **「建議掛單與前一交易日走勢」** 卡片。
+  - 後端 API 大幅優化：將原本僅獲取 1 天走勢的邏輯改為獲取最後 5 天的 2 分鐘間隔分時數據，並在後端將資料按交易日分群，分別提煉出 **「最新交易日走勢 (今日走勢)」** 與 **「前一交易日走勢 (昨日走勢)」**。
+  - 前端渲染兩個獨立的折線走勢圖與法人均價線，其中「前一交易日」的股價線與成交量採用 **綠色系 (#34d399)** 呈現，便於視覺直觀區分。
+  - 同步計算前一交易日的 OHLC 指標，並生成一組獨立的 **「積極、穩健、保守」建議掛單價格按鈕**。使用者點選昨日建議價格時，同樣能無縫代入至倉位買入價格輸入框，支援完整的風控試算。
+
+---
+
+### 7. 修復風控委託取消與歷史紀錄清理功能
+- **原因說明**：使用者先前在 `orders_store.json` 中留有歷史測試紀錄（如買入價 500、停損價 2260 的台積電模擬部位），其異常的停損條件是前一日由於計算公式 bug 產生的歷史殘留。因為其狀態已為 `STOP_LOSS_TRIGGERED`（已結束），後端不允許對非監控中 (`MONITORING`) 的項目執行「取消監控」，且前台先前無任何清理歷史數據的機制，導致該條異常數據無法被消除。
+- **解決方案**：
+  - **後端新增 DELETE API**：在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 中新增了 `DELETE /api/sinopac/orders/{order_id}` 路由，支援依據唯一 `order_id` 刪除該筆模擬交易歷史。
+  - **前台新增「刪除紀錄」按鈕**：更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的渲染邏輯。現在當風控監控清單中的項目處於已結束狀態（已停損/已停利/已取消/委託失敗）時，操作欄會顯示一個 **紅色垃圾桶按鈕**，點擊並確認後即可一鍵將資料自本地端 JSON 庫中物理刪除，完美清理版面。
+
+### 8. 全市場掃描與背景風控監控「防 Yahoo 財經頻率限制 (Rate Limit)」重大優化
+- **原因說明**：先前背景風控監控每 10 秒針對所有監控個股逐一調用 `history()` 下載股價，且全市場掃描啟動時，使用 20 個線程並行、逐一抓取 1940 檔股票的 6 個月歷史數據。這會對 Yahoo Finance 伺服器產生極其密集的 API 請求，極易觸發 `Too Many Requests (429)` 頻率限制，導致 IP 被封鎖，進而使系統所有功能（包括 Tab A 指標分析、個股分時圖、三大法人買賣超等）全部拋出「分析錯誤」或「資料載入失敗」。
+- **優化與修復**：
+  - **風控監控改為批次抓取**：重構 [shiopac_connector.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/shiopac_connector.py) 的監控線程，利用 `yf.download(symbols)` 一次性下載所有監控中股票的最新報價，並將輪詢間隔拉長至 20 秒，且加入 `cooldown_until` 機制（若偵測到 rate limit/429，自動進入 120 秒的冷卻避讓狀態，暫停請求）。
+  - **全市場掃描改為分批 (Batch) 抓取**：重構 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 的 `run_all_market_scan` 函數。將 1940 檔股票分成每批 80 檔，使用單次 `yf.download(symbols)` 抓取該批次的 6 個月日線數據，並在本地切片處理，且在批次下載間加入 1.5 秒的禮貌延遲。這將原本的 1940 次 API 請求降低到了約 24 次，使全市場底部潛力股掃描能在 30 秒內安全且極速地完成，完全解決了頻率限制導致分析出錯的根源性問題。
+
+---
+
+
+## 本機驗證與存取方式
+
+1. **後端服務成功運行中**：
+   - 後端服務已成功啟動並常駐於背景，地址：**`http://127.0.0.1:8000`**。
+   - 啟動時已從快取成功加載 **98 檔潛力底部股票**，前端 Tab B 將會立刻呈現，不需等待背景掃描！
+   
+2. **本機雙擊啟動說明**：
+   - 專案根目錄下的 [run_server.bat](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/run_server.bat) 已更新為 unbuffered 模式運作。
+   - 雙擊執行即可在本機一鍵運作所有功能。
+
+---
+
+## 🚀 Streamlit 整合版本與 Cloud 部署驗證
+
+我們成功開發了全新的 Streamlit 版本，並移除了對 FastAPI 後端與額外靜態網頁伺服器的雙重依賴，改為**全 Python 單一網頁架構 (`streamlit_app.py`)**。
+
+### 1. 功能亮點與架構對齊
+- **雙分頁欄位與排序完全一致**：
+  - **熱門面板 (Tab A)** 與 **潛力股面板 (Tab B)** 現在共享完全相同的 10 個欄位，包括「股票代碼、個股名稱、當前收盤價、成交張數、日線趨勢、60分K KD、底底高型態、五大策略燈號、系統進場訊號」。
+  - 兩者皆採用相同的排序規則（進場訊號優先 -> 多頭趨勢優先 -> KD金叉次數 -> 成交張數）。
+- **整股張數輸入與零股金額輸入動態切換**：
+  - 當使用者將計算機的交易模式切換為 **「整股 (按張數計算)」** 時，輸入框會動態變更為 **「預計買入張數 (張)」**，並自動預估實質花費與風控參數。
+  - 當切換回 **「零股 (按股數計算)」** 時，輸入框恢復為 **「預計投入金額 (台幣)」**。
+- **建議價格卡片一鍵代入**：點選今日或昨日的「積極、穩健、保守」建議價格按鈕時，金額會立刻自動 Prefill (代入) 到設定買入價格欄位中。
+- **無縫嵌入式 ECharts 圖表**：利用 `st.components.v1.html` 將我們原本高質感的 HSL 深色玻璃沙 ECharts 圖表完全嵌入，保留了滑鼠懸停 tooltip 格式、分時均價線、法人超額買賣柱狀圖等所有精緻視覺效果。
+
+### 2. 檔案異動
+- 🚀 **[streamlit_app.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/streamlit_app.py)**：主 Streamlit 程式。
+- 📦 **[requirements.txt](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/requirements.txt)**：Streamlit Cloud 發布所需的第三方依賴定義。
+
+### 3. 本地啟動與部署
+- **本地執行**：
+  ```bash
+  pip install streamlit
+  streamlit run streamlit_app.py
+  ```
+- **Streamlit Cloud 免費部署**：將整個專案目錄上傳至 GitHub 倉庫，前往 [Streamlit Cloud](https://share.streamlit.io/) 登入 GitHub 並點擊 "New App"，选择对应仓库与 `streamlit_app.py` 入口，点击 Deploy 即可取得对外公开的 URL 供朋友测试。
+
+
+---
+
+## 🖥️ 本地端 Dashboard 同步更新與驗證成果
+
+我們已將本地端的 FastAPI/HTML/CSS/JS 版本進行了完全的同步更新，確保其具備與 Streamlit 版本一致的精緻功能與資料指標：
+
+### 1. 統一雙分頁表格欄位與排序 (10 欄對齊)
+- **變更**：修改了 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 與 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的表格結構與渲染程式碼。
+- **欄位對齊**：**熱門股即時追蹤 (Tab A)** 與 **全市場底部潛力股 (Tab B)** 皆呈現完全相同的 10 個欄位，包括：代號、股名、當前價、成交量、日線趨勢、60分K打底、底底高、策略燈號、進場訊號、操作。
+- **排序對齊**：雙分頁表格皆在前端依照「系統訊號優先 -> 多頭趨勢優先 -> KD金叉次數 -> 成交張數」進行統一的多重排序比對，確保名列前茅的股票皆是最具投資吸引力的標的。
+- **Tab B 操作欄「加入追蹤」連動**：在 Tab B 表格的最後一欄，系統會動態比對該潛力個股是否已存在於 Tab A 追蹤清單中。若已存在，則顯示 **「已追蹤」** 狀態；若否，則呈現 **「+」加入按鈕**，點擊即可無縫調用 API 新增至 Tab A，並立刻更新狀態，體驗非常流暢。
+
+### 2. 計算機「整股 (張數) / 零股 (金額)」輸入模式與快捷按鈕動態切換
+- **整股模式**：
+  - 切換為「整股」時，投入金額輸入框之 Label 動態變更為 **「預計買入張數 (張)」**，前綴符號切換為 **「張數」**，並自動限制 `step="1"`。
+  - **快捷按鈕動態適應**：底部的快捷按鈕會從金額標籤（1萬、3萬、10萬等）動態改寫為 **「1張、3張、5張、10張、30張」**，點點滑鼠即可代入張數。
+  - **計算邏輯對齊**：計算器與模擬下單邏輯皆改為以 `shares = lots * 1000` 來計算實際投入股數與部位風險。
+- **零股模式**：
+  - 切換回「零股」時，Label 還原為 **「預計投入金額 (台幣)」**，前綴還原為 **「NT$」**，快捷按鈕也重置為金額，完美符合零股族的小額投入操作邏輯。
+
+### 3. 後端 API 結構補齊
+- 在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 的 `process_scanned_stock_data()` 回傳值中顯式補齊了 `"morph_ok": True`，完美解決了與 Tab A analyze 回傳結構的 schema 一致性。
+
+### 4. 完整本機驗證
+- **後端狀態**：已在背景以 Task `task-1764` 啟動 FastAPI 伺服器，並成功聆聽於本機 **`127.0.0.1:8000`**。
+- **資料正確性**：經由測試，`/api/stocks/analyze` 能正確生成包括 `volume_lots` 與 `morph_ok` 在內的所有技術指標 JSON，前端表格重繪渲染無任何 JS 報錯，版面佈局適應良好。
+
+### 5. 網站圖示、標題與「黑深紫科技簡約風格」品牌設計
+- **網站 Icon (Favicon)**：我們將您上傳的貓咪圖片儲存為 `favicon.jpg`，並成功配置為 HTML 網頁的 favicon 標誌。
+- **標題修改與 Logo 植入**：
+  - 在 HTML (`index.html`) 與 Streamlit (`streamlit_app.py`) 中，均將網頁標題（`<title>` 及瀏覽器標籤頁名稱）修改為 **「台股量化選股掘$與風控計算」**。
+  - 在網頁頂部的標題列前方，我們以圓角 `.logo-img` 形式植入了這張貓咪圖示，並為其搭配了霓虹紫科技陰影glow，代替了原先的 FontAwesome 預設圖表 icon。
+- **黑深紫科技簡約主題風格 (Black & Deep Purple)**：
+  - 更新了 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中的調色盤變數：主背景變更為極深黑紫色 (`#05020a`)，面板背景改為帶磨砂感之暗紫玻璃沙 (`rgba(13, 8, 24, 0.55)`)，主色調更新為霓虹紫色 (`#8b5cf6`/`#7c3aed`)。
+  - 調整了網頁的放射狀背景漸層，在左上與右下分別渲染了暗紫色與深紫紅色的極光光暈，使整體科技質感大幅躍升。
+  - 同步更新了 `streamlit_app.py` 中的內嵌 `<style>` 屬性與 `.stApp` 背景定義，確保 Streamlit 版本的視覺美感與本機 FastAPI 前端完美一致。
+
+### 9. 串接 Yahoo 奇摩股市「主要經營業務」中文化題材資訊
+- **問題**：原先個股的「題材」是來自 `yfinance` 的英文 `industry` 欄位（例如 `Semiconductors` 或 `Marine Shipping`），且在 Yahoo 財經有時會查不到，導致題材不精確或為英文。
+- **修復**：
+  - 在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 中實作了 **Yahoo 奇摩股市基本資料爬蟲**。系統現在會針對個股代號直接向 `tw.stock.yahoo.com` 爬取真實的中文「**主要經營業務**」描述。
+  - 新增 **本地端快取機制** [business_desc_cache.json](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/business_desc_cache.json)，爬取過的個股業務資訊會快取在本地，避免重複爬取觸發 Yahoo 頻率限制，且大幅提升 API 響應速度。
+  - 修正 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中的 tooltip 樣式，將 `white-space: nowrap` 修改為 `white-space: normal`，並設定最大寬度 `max-width: 250px` 與自動換行，讓長篇的中文業務說明能精美呈現，不超出螢幕。
+
+### 10. 修正雙分頁表格排序與說明列同步 (進場訊號 > 符合燈號數 > 風暴比 > 成交量)
+- **問題**：使用者需要將兩個分頁的排序優先級調整為：「進場訊號」優先 -> 符合燈號「多 > 少」次之 -> 「風暴比 R值」再次之 -> 「成交量」最後，並期望兩個分頁皆呈現該排序依據說明。
+- **修復**：
+  - 更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js)，撰寫了輔助函數 `getActiveSignalsCount(stock)` 計算個股符合的策略燈號數量，並在雙分頁的 `sort` 中套用完整的優先級排序（進場訊號 -> 燈號數 -> R值 -> 成交量）。
+  - 在 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 的 **熱門個股 (Tab A)** 與 **潛力股 (Tab B)** 表格上方均新增/更新了黃色「篩選與排序說明列」，展示正確的排序法則，資訊兩端完全吻合。
+
+### 11. 修正整股計算模式下輸入框字首 (Prefix) 與價格同步 Bug
+- **問題**：當交易模式切換為整股 (ROUND) 時，因為先前前端使用萬用 `querySelector` 取得第一個 `.currency-prefix` 元件，導致錯誤地將「設定買入價格」的 `$` 改為了「張數」，而「預計投入」輸入框卻依然顯示 `NT$` 且未正常變更，且價格在模式變更時未同步重設。
+- **修復**：
+  - 為 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 的兩個輸入框字首分別配置了唯一 ID `buy-price-prefix` 與 `investment-prefix`，在靜態中均初始化為 `NT$`。
+  - 在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `change` 事件中，依照 ID 精準調整：當為整股時，買入價字首保持 `NT$`，投入量字首切換為 `張數`；當為零股時，兩者均維持 `NT$`，文字標記非常清晰。
+  - 在模式切換時，自動將選定個股的現價帶入 `targetBuyPriceInput` 中，並即時觸發 `updateCalculations()`，確保價格與風控資料完美同步。
+
+### 12. 優化整股計算模式邏輯與卡片佈局順序
+- **問題**：使用者回饋整股交易模式之欄位定義應更具合理性：輸入張數時，原「設定買入價格」輸入框應轉換為「買入合計金額」且即時算出 `張 * 1000股 * 股價` ；此外，從看盤到倉位下單的閱讀邏輯應更順暢，「倉位與風控計算」和「當前監控清單」卡片應排在最下方（即三大法人買賣超圖表之後）。
+- **修復**：
+  - **整股邏輯重構**：當模式切換為整股時，將原價格輸入框之標籤動態變更為 `買入合計金額 (台幣)`，並將其設定為 `readOnly` 唯讀，數值即時以 `張數 * 1000 * 當前股價` 動態計算填入。若使用者在下方折線圖點選建議掛單單價（積極/穩健/保守），系統會將該單價記為基準價格，即時更新「合計金額」輸入框，並帶入風控分析，邏輯極其合理流暢。
+  - **右側卡片佈局重新排序**：調整 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 右側欄卡片位置，新的視覺閱讀順序為：選取股頭與進場訊號 ➡️ 今日分時與掛單建議 ➡️ 昨日分時與昨日掛單 ➡️ 日K線圖表 ➡️ 三大法人買賣超 ➡️ 倉位與風控計算機 ➡️ 當前模擬風控監控清單。
+
+### 13. 介面新增全市場背景掃描頻率與時間說明
+- **問題**：使用者需要將「掃描需時一至二分鐘，每天盤後掃描一次即可」的文字註記顯式標示於 UI 上，告知使用方法。
+- **修復**：
+    - 更新了 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/index.html) 的 `scan-status-label` 結構，在載入快取後方加上灰字提示：`(每天盤後掃描一次即可，掃描需時一至二分鐘)`。
+    - 更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `pollScanStatus` 線程，當背景掃描完畢重新整理快取時，動態將該提示文字渲染回狀態欄位，以維持畫面提示一致性。
+    - 更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 以顯示最後更新時間。
+
+---
+
+## 🌟 股票清單雲端同步與 UI 修復 (本次新增功能)
+
+為了實現「在不同裝置上（如電腦與手機）使用網頁版時，能保持完全同步的自選股與監控清單」，我們完成了以下變更：
+
+### 1. 後端 `/api/lists` API 實作
+- 在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 中定義了 `LISTS_FILE` 指向 `backend/data/lists.json`。
+- 新增 `GET /api/lists` 路由：讀取雲端清單。
+- 新增 `POST /api/lists` 路由：接受自選股與監控清單陣列並寫入 `lists.json`，同時自動與 Mock 交易風控監控的 orders 同步。
+- 重構了原本的 `read_stock_list()` 和 `write_stock_list(stocks)` 使其直接面向上方的 `lists.json`。這意味著原本 API 對於自選股的操作將自動對齊到同一個實體 JSON，確保數據的「單一真理源 (Single Source of Truth)」。
+
+### 2. 前端雲端同步機制
+- 在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中實作了 `loadStocksFromStorage()` 和 `saveStocksToStorage()` 函數，廢除對 LocalStorage 的單一讀寫。
+- 當網頁加載時，會自動調用 `loadStocksFromStorage()` 拉取雲端資料。
+- 當使用者進行以下七項主動變更操作時，系統會在畫面更新後自動調用 `saveStocksToStorage()`，無縫發送 POST 請求同步到後端雲端存檔：
+  1. 新增個股追蹤
+  2. 刪除個股追蹤
+  3. 從 Tab B 全市場潛力股中點擊 `+` 加入追蹤
+  4. 匯入文字檔批次新增追蹤
+  5. 模擬下單並啟動風控監控
+  6. 取消個股風控監控
+  7. 刪除模擬交易歷史紀錄
+
+### 3. 個股股名 Tooltip 的自適應修復與 Badge 標籤 Tooltip 支援
+- 修改了 `formatStockNameHTML`。現在不論個股有沒有爬取到 Yahoo 的中文「主要經營業務」，都會正確掛載 `data-tooltip`。如果有業務介紹會顯示介紹，否則預設會顯示該股代號，確保滑鼠懸停 (Hover) 與手機觸控 (Touch) 行為在所有裝置上完全一致。
+- **自選股來源標籤 Tooltip 支援**：同時為自選股名稱後綴的 Badge 標籤加上了 `data-tooltip`。現在當滑鼠懸停或手機點觸「文」符號時會顯示「文字加入」提示；懸停或點觸「手」符號時亦同，會顯示「手動輸入」提示；懸停或點觸「新增」符號時則會顯示「全市場掃描新增」提示，顯著提升了用戶識別體驗。
+- **修復重整理 (重刷) 時符號消失之 Bug**：
+  - **後端修復**：修正了 `backend/main.py` 的 `analyze_single_stock`。在回傳的技術分析字典中補齊了原先遺漏的 `"added_by"` 欄位，避免前台在拉取最新數據後遺失自選股來源屬性。
+  - **前端雙重保險還原**：於 `app.js` 的 `saveStocksToStorage()` 新增了反向還原邏輯，若自選股暫時缺少 `added_by` 屬性，前台會自適應地根據股名後綴 (如 "手動"、"文字") 還原來源屬性並存檔，徹底解決了點擊重新整理或重刷時 "手"、"文" 等 Badge 符號被覆寫消失的程式缺陷。
+
+### 4. UI 結構與快捷功能累加、歸零優化
+- 將 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 左側 Tab A 的標題由原本的「熱門個股追蹤清單」優化為「熱門強勢股」，並精準地將 `<span id="popular-count-label">` 檔數標籤掛載在旁，視覺效果良好。
+- 驗證「設定買入價格」UI 結構，確認使用 `calc-input-group` 及 `amount-input-wrapper`，排版正常且小字提示無誤。
+- **快捷按鈕累加與歸零功能**：
+  - **數值累加**：更新了 `app.js` 的快捷按鈕點擊處理邏輯。現在在零股模式（1萬、3萬等）或整股模式（1張、3張等）下，重複點擊按鈕時，欄位數值會自動進行累加。
+  - **一鍵歸零**：在快捷按鈕區塊的右側，新增了一個精緻的玫瑰紅色 **「歸零」** 按鈕。點擊時可一鍵清空預設金額或張數，且即時重算風控部位，極大優化了不同金額/張數部位試算的操作流暢度。
+
+### 5. 雲端部署與本機穿透重啟驗證
+- **後端 API 伺服器**：已成功在背景啟動 (task-3654)，聆聽於本機 `http://127.0.0.1:8000`。
+- **Cloudflare Tunnel**：已成功建立安全穿透通道 (task-3656)，產生了隨機臨時對外網址：
+  👉 `https://collectible-initiated-grew-hanging.trycloudflare.com`
+- **Firebase Hosting 前端**：已使用 Firebase CLI 成功重新部署！
+  👉 線上網頁存取網址為：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**。
+  只要您的本機 API 與 Tunnel 保持連線，任何連入此線上網址的裝置 (手機或電腦) 都會自動與您的家裡電腦保持完全同步！
+
+---
+
+## 🕒 股價盤中更新頻率標記與 UI 優化 (最新完成項目)
+
+為了讓使用者清楚掌握台股盤中即時價格的更新頻率與延遲狀況，我們在 UI 適當位置加入了以下兩項標示：
+
+### 1. 數據源延遲資訊標示 (Header Status Badge)
+- **位置**：頂部標頭 API 狀態欄 (`#api-status`)。
+- **變更**：
+  - 文字修改為 **「Yahoo 數據 (延遲15分)」**。
+  - 新增精美的 **`data-tooltip` 浮動提示**：`台灣股市 (TWSE/TPEx) 盤中報價在 Yahoo Finance 有約 15 分鐘延遲`。
+  - 當滑鼠懸停 (hover) 或手機點擊 (touch) 時，即會顯示該提示，讓使用者明確了解 Yahoo Finance 提供之免費台股報價非即時，而是有 15 分鐘常規延遲。
+
+### 2. 模擬風控監控器即時刷新頻率標示 (Active Wind-Control Monitors Header)
+- **位置**：右側 **「當前模擬風控監控清單」** 的卡片標頭。
+- **變更**：
+  - 新增黃色警告提示標誌與文字：`監控價格每 20 秒自動刷新`。
+  - 搭配 **`data-tooltip` 浮動提示**：`後端風控背景執行緒每 20 秒向 Yahoo Finance 下載最新價格進行即時止損/止利監控`。
+  - 這清楚告知使用者：
+    - 背景風控執行緒 (`backend/shiopac_connector.py`) 每 **20秒** 會向 yfinance 下載最新報價，並判定是否觸發停損/停利。
+    - 前端網頁則每 **5秒** 向後端 API 輪詢最新數據狀態以即時更新畫面。
+
+### 3. Firebase 部署驗證
+- **部署指令**：`cmd /c "set PATH=%PATH%;C:\Program Files\nodejs&& npx firebase deploy"`
+- **部署狀態**：成功發布至 **[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**。所有變更均已上線生效。
+
+---
+
+## 📊 三大法人圖例顏色修正與股票清單股價延遲註記 (最新優化)
+
+### 1. 三大法人買賣超統計圖表之投信圖例修正
+- **問題**：因先前 `series[1].itemStyle.color` 是採用動態函數區分正負值顏色，導致 ECharts 預設圖例 (Legend) 的「投信」無法正確對齊亮粉色，而是呈現灰色或系統預設色。
+- **修復**：
+  - 在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `institutionalChart` 配置中，為 `option` 新增了全域調色盤 `color: ["#6366f1", "#ec4899", "#f59e0b"]`。
+  - 同時在三個法人 series 中顯式設定了對應的 `color`（外資：靛藍 `#6366f1`、投信：亮粉 `#ec4899`、自營商：橘黃 `#f59e0b`）。
+  - 這使圖表上方的圖例 (Legend) 與下方柱狀圖的正數顏色（亮粉色等）完全對齊一致，呈現高品質視覺效果。
+
+### 2. 股票清單 (Tab A/B) 股價延遲與手動刷新機制註記
+- **說明**：為避免使用者混淆「股票清單」與「風控監控清單」的更新頻率，我們已在 UI 進行了明確註記：
+  - **熱門強勢股 (Tab A)** 篩選列中新增：`股價：延遲15分 (手動重刷)`，滑鼠懸浮或點觸會顯示 `台灣股市盤中報價在 Yahoo Finance 有約 15 分鐘延遲。此清單之價格非自動刷新，請點擊上方「重新整理」按鈕手動更新。`。
+  - **底部潛力股 (Tab B)** 篩選列中新增：`股價：延遲15分 (點擊掃描更新)`，提示使用者此為快取清單，若要取得最新篩選結果與延遲 15 分鐘的最新價格，可點擊右上角 `重新掃描全市場` 按鈕。
+  - 只有**右側風控監控清單 (Card 6)** 是由後端以 `20秒` 頻率向伺服器自動拉取並同步的。
+
+### 3. Firebase 部署驗證
+- 已經成功重新發布至線上：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**，點選即可同步測試。
+
+---
+
+## ⚠️ 主頁開頭投資警語加註 (最新完成項目)
+
+為了落實投資合規與風險提醒，我們在網頁主頁頂部顯眼處加註了玻璃磨砂質感的投資警語：
+
+### 1. 警語橫幅設計
+- **位置**：位於主頁頂部標頭 (Header) 與分頁導覽列 (Tab Navigation Bar) 之間，為使用者進入系統的第一視覺焦點。
+- **樣式**：採用深色磨砂紅底 (`rgba(244, 63, 94, 0.07)`)、淡紅色細邊框與紅色警示圖標，符合整體黑深紫高質感科技風，顯眼卻不突兀。
+- **警語內容**：
+  > **【投資警語】** 本系統所提供之量化分析、技術指標及模擬風控數據僅供學術研究與模擬交易教學參考，不代表任何形式之投資买卖建議。股市投資具有高風險，投資人應獨立思考、審慎評估，並自行承擔所有投資決策之風險與盈虧。
+
+### 2. Firebase 部署驗證
+- 已經成功更新並同步部署至線上平台：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**。
+
+---
+
+## ↕️ 右側雙捲軸問題修正 (最新完成項目)
+
+### 1. 雙捲軸原因分析
+- 因本系統實作了高度適應的「縮放比例自適應（CSS Viewport Scaling）」機制，在不同螢幕寬度下，`body` 會被套用 `transform: scale(X)` 以維持畫面比例。
+- 原本的 `@media` 查詢中直接限制了 `body` 的 `height` 為固定的 `calc(100vh / X)`（如 `calc(100vh / 0.75)`），這使得當網頁內容長度超過該固定高度時，內容會在 `body` 內產生溢出，同時觸發了 `html`（瀏覽器視窗）與 `body` 兩層捲軸。
+
+### 2. 解決方案與變更
+- 我們修改了 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中的所有媒體查詢樣式：
+  - 將各比例媒體查詢下的 `body { height: calc(100vh / X); }` 修正為 **`body { min-height: calc(100vh / X); }`**。
+  - 將 2200px~2560px 範圍的 `body { height: 100vh; }` 修正為 **`body { min-height: 100vh; }`**。
+- 這可確保 `body` 的高度僅為「最小高度」限制，當頁面內容超出視窗高度時，`body` 會隨內容自然拉長，由瀏覽器統一進行單一捲軸滾動，**完美消除了右側的重疊雙捲軸**。
+
+### 3. Firebase 部署驗證
+- 已更新並同步部署至：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**。
+
+---
+
+## 📱 手機版與版面緊湊優化、警語縮小、走勢標註日期、監控清單移除手動後綴 (最新優化)
+
+為了精益求精並解決行動裝置與版面呈現的細部體驗問題，我們進行了以下關鍵調整：
+
+### 1. 手機版版面緊湊與輸入字型最佳化
+- **問題**：在小螢幕（如手機）上，原本的卡片 padding (`2rem`) 與表格間距過大，導致橫向欄位過度擠壓而折行，使得版面拉得很長且閱讀困難。
+- **調整**：
+  - 在 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中新增針對 `max-width: 640px` 的手機版緊湊媒體查詢：
+    - 將 `body` 內距縮小為 `0.5rem`，卡片 `.panel-card` 內距縮小至 `0.85rem`、元素間距（`gap`）縮小至 `0.85rem`。
+    - 表格單元格 `th` 和 `td` 的 padding 縮小至 `8px 6px`，以大幅釋放橫向寬度。
+    - 表格字型微調為 `0.875rem`，且輸入框 `input` 字型微調放大至 `0.95rem`、padding 改為較緊湊的 `8px 10px`，使文字顯著加大且易於在手機觸控點選。
+    - 調整折線走勢圖與法人圖表的預設高度為 `200px`，顯著減少垂直高度，避免頁面過度拉長。
+
+### 2. 投資警語橫幅大小與高度縮小
+- **調整**：
+  - 將主頁開頭的 `disclaimer-banner` 字體大小由 `0.8rem` 縮小至 **`0.6rem`** (約原本的 1/2)。
+  - padding 縮小至 `6px 12px`，圓角縮小至 `8px`，前置圖標大小縮小至 `0.85rem`。
+  - 這使其完美收納為頂部一行精簡的法律宣告警語，極大節省了頂部垂直高度。
+
+### 3. 交易日走勢圖表標註具體日期
+- **後端 API 升級**：修改了 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 的 `/api/stocks/{code}/chart-data` 路由，在回傳資料中附帶了實際獲取到的最新交易日日期 `"intraday_date"` 與前一交易日日期 `"prev_intraday_date"`。
+- **前端渲染**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 接收到數據時，會自動將日期渲染至 Card 3 與 Card 3.5 的標題右側（如 `建議掛單與今日走勢 (2026-06-12)` 及 `建議掛單與前一交易日走勢 (2026-06-11)`），讓使用者能明確掌握所分析數據的日期時間。
+
+### 4. 監控清單移除「手動加入」等來源字樣
+- **調整**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `fetchAndRenderMonitors()` 中，使用正則表達式自動將股名後綴中攜帶的 `(手動加入)`、`(文字加入)`、`(新增)` 等文字標記物理過濾（`o.name.replace(/\((手動加入|文字加入|手動|文字|新增|全市場掃描新增)\)$/, "").trim()`），在風控監控面板只單純呈現個股名稱（例如：`台積電`），版面更清爽。
+
+### 5. 浮動 Tooltip 邊界溢出防止
+- **問題**：若 Tooltip 出現在表格最左側或最右側，因預設為 `left: 50%; transform: translateX(-50%)` 水平居中，會容易導致文字被切斷或超出螢幕左右邊界。
+- **調整**：在 CSS 中為第一、第二欄位（靠左）以及最末幾欄與標頭 Badge（靠右）定義了邊界自適應定位：
+  - 靠左元素：Tooltip 靠左對齊（`left: 0; transform: none`）。
+  - 靠右元素：Tooltip 靠右對齊（`left: auto; right: 0; transform: none`）。
+  - 徹底解決了任何 Tooltip 溢出螢幕邊界的問題。
+
+### 6. Firebase 部署與運行驗證
+- **已部署至**：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**，所有修復均已發布上線。
+
+---
+
+## 🚀 側邊欄自適應優化、移動停損判斷與全局 Tooltip 設計 (最新完成項目)
+
+我們針對最近報告的 Tooltip 截斷、個股卡片橫捲軸、日線與60分K打底欄位標題換行以及移動停損停利按鈕初值狀態，進行了全面的改善與重構：
+
+### 1. 全局 Tooltip 機制重構（解決 Tooltip 截斷問題）
+- **問題**：先前 Tooltip 採用 CSS 虛擬元素 (`::after`) 實作。當 Tooltip 所屬的元素位於設有 `overflow-x: auto` 或 `overflow: hidden` 的容器（如 `.table-container` 或 `.panel-card`）內部時，Tooltip 內容會被容器邊界硬生生截斷，造成無法閱讀。
+- **修復**：
+  - 完全廢除 CSS 虛擬元素 Tooltip。
+  - 在 `app.js` 中實現了**全局 JS 浮動 Tooltip 委託機制**：當滑鼠懸浮 (`mouseover`) 或手機觸控點擊 (`touchstart`) 任何帶有 `[data-tooltip]` 的元素時，會動態在 `<body>` 根節點下建立或顯示一個 `#global-tooltip` 元素。
+  - 此元素位於 DOM 最頂層，不再受制於任何 scroll 或 overflow 容器，並在 JS 中精確計算位置，加入 viewport 安全邊界檢查（左、右及上方防溢出定位），**徹底解決 Tooltip 截斷問題**。
+
+### 2. 個股卡片橫捲軸移除與自適應 (Adaptive Layout) 強化
+- **變更**：
+  - 為 `.panel-card` 加上 `min-width: 0; word-wrap: break-word; overflow-x: hidden;`，避免其在極窄螢幕下溢出。
+  - 移除了「下單限價/數量/停損/停利」預覽橫幅 (`.order-inputs-preview`) 與「建議掛單價格」按鈕組 (`.suggested-prices-grid`) 的行內固定 Grid columns 寬度，移入 `index.css`，並加上 `@media` media queries 自適應折行，**當寬度不夠時自動切換為雙欄或單欄**。
+  - 完美消除了右側個股卡片群在不同縮放比例與視窗大小下產生的橫向捲軸，自適應效果更佳。
+
+### 3. 表格標題換行與欄位緊湊化
+- **變更**：
+  - 將自選股與潛力股表格的「日線趨勢」標題修改為「日線<br>趨勢」，「60分K打底」標題修改為「60分K<br>打底」。
+  - 縮小 `index.css` 中此兩欄的 `min-width`（日線：`52px`，KD：`60px`），使得表格欄位能夠更向內靠攏，資料排版非常緊湊且對齊。
+
+### 4. 監控清單風控條件合併
+- **變更**：
+  - 將原本風控監控清單與移動監控清單中的「停損條件」與「停利條件」獨立兩欄，合併為單一欄位「風控條件（停損/停利）」與「移動條件（停損/停利）」。
+  - 將 7 欄表格簡化為 6 欄，並以換行呈現停損與停利條件，大幅釋放橫向版面空間。
+
+### 5. 移動停損停利狀態判定與灰顯 (Disable) 機制
+- **後端 API 升級**：
+  - **2日數據批次下載**：重構背景風控監控線程 `_monitor_loop`，將 yfinance 下載期間由 `1d` 變更為 `2d`，取得今天現價與昨收價，計算後在 order 物件中存入 `"reference_price"` (基準昨收價)。
+  - **新增 Quote API**：在 `backend/main.py` 新增 `/api/stocks/{code}/quote` 路由，支援取得即時價格與基準昨收價。
+- **前端灰顯與註明**：
+  - 渲染風控監控清單時，直接讀取 `o.last_price` 與 `o.reference_price` 來比對該個股當前漲幅是否大於 5%。
+  - 若未達 5% 條件，按鈕呈現**灰色失效狀態** (`opacity: 0.5; cursor: not-allowed;`)，滑鼠懸浮或點擊時，Tooltip 會直接標註：`未達成移動停利條件 (當前漲幅 X.XX% ≤ 5%)` 或 `未達成移動停利條件 (等待最新報價)`。
+
+### 6. Firebase Hosting 同步發布
+- 已成功使用 `cmd /c "npx firebase deploy --only hosting"` 將最新的自適應前端代碼發布上線！
+- 👉 存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 📊 三大法人淨買賣超與籌碼集中度圖表加值 & 表格密合調整 (最新優化)
+
+### 1. 三大法人淨買賣超明確標示
+- **前端變更**：
+  - 更新 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 中三大法人統計卡片的標頭為 **「三大法人淨買賣超統計 (近20日, 單位:張)」**。
+  - 更新 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 ECharts Tooltip 標題格式為 **「法人淨買賣超」**，使使用者能清晰明白該數據為每日法人買入與賣出張數相減之「淨值」。
+
+### 2. 新增「近20日籌碼集中度 (%)」圖表卡片
+- **前端新增**：
+  - 在法人淨買賣超卡片下方新增了一張獨立的技術分析卡片 **「近20日籌碼集中度 (%)」**，綁定專屬 ECharts 容器 `#chip-concentration-chart`。
+  - 實作 `renderChipConcentrationChart(instList)` 渲染邏輯，使用雙色柱狀圖直觀展示集中度：
+    - 正集中度顯示為代表偏多買超的 **紅色 (#ef4444)**。
+    - 負集中度顯示為代表偏空賣超的 **綠色 (#10b981)**。
+    - 滑鼠懸停或觸控時會浮現精準的百分比 Tooltip（例如：`+15.20 %`）。
+  - 將新圖表物件 `chipConcentrationChart` 註冊至全域生命週期與 `resizeAllCharts` 機制中，在個股切換時自動銷毀、載入 Loading Spinner，重繪無任何錯誤。
+
+### 3. 日線趨勢與 60分K打底欄位密合度調整 1/2
+- **排版微調**：
+  - 為了縮減「日線趨勢」與「60分K打底」兩個主要方向訊號欄位之間的視覺間隙（密合 1/2），我們重新分配了表格 11 個欄位的寬度佔比：
+    - **日線趨勢**：由 `9%` 縮減至 **`6.5%`** (CSS)，inline style 由 `10%` 縮減至 **`7.5%`**。
+    - **60分K打底**：由 `10%` 縮減至 **`7.5%`** (CSS)，inline style 由 `10%` 縮減至 **`7.5%`**。
+    - **股名欄**：將釋放出來的空間全數補償給「股名」欄位，寬度由 `12%` 提升至 **`17%`** (CSS)，inline style 由 `14%` 提升至 **`19%`**，使長股名不再折行，整體排版更加緊湊合宜。
+
+### 4. Firebase 線上發布
+- 已成功重新發布至線上託管平台！
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 🛠️ 個股清單、模擬交易預覽、停利停損按鈕 Tooltip 與放大優化 (最新優化)
+
+### 1. 移除非必要的個股清單捲軸 (Scrollbar)
+- **調整原因**：部分小螢幕或高解析度縮放比例下，左側「熱門股」與「潛力股」表格會產生橫向捲軸，降低了資訊的連貫性。
+- **修復方案**：
+  - 更新 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中的 `.table-container`，將 `overflow-x` 變更為 **`hidden`**。
+  - 將自選股與潛力股表格 11 個欄位的 `min-width` 全面調小（例如代號 `52px` -> `42px`，股名 `110px` -> `70px`，操作 `44px` -> `32px`），使總最小寬度由 `681px` 縮小至 `533px`。如此表格能流暢在各種視窗寬度中自適應，不再產生任何橫向捲軸。
+
+### 2. 模擬交易下單預覽改回「橫向排列」
+- **修復方案**：在 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中移除了 `@media (max-width: 1200px)` 及 `@media (max-width: 480px)` 下對於 `.order-inputs-preview` 的 Grid 欄數覆寫規則。現在「收盤限價、委託數量、停損觸發、停利觸發」不論在桌機、平板或手機上均維持在一行橫向排開的俐落風格。
+
+### 3. 未達移動停損條件按鈕 Tooltip 支援
+- **問題分析**：在 HTML 標準中，原生的 `disabled` 屬性會使瀏覽器停止向該元素發送滑鼠指標與 hover 事件，導致全局 Tooltip 無法被觸發展示。
+- **修復方案**：
+  - 更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `fetchAndRenderMonitors` 模板，移除了 HTML 原生 `disabled` 屬性，改為使用 CSS 類別 `.disabled` 以及 `cursor: not-allowed; opacity: 0.5; pointer-events: auto;` 模擬禁用視覺。
+  - 在 `handleTrailingStopTrigger` 點擊處理邏輯中首行加上 `if (e.currentTarget.classList.contains("disabled")) return;` 以物理阻斷無效點擊。現在該按鈕依然安全地保持失效，但滑鼠懸停與手機觸碰時，能正確觸發展示不透明黑底白字 Tooltip。
+
+### 4. 所有的 Tooltip 放大為 125% 與樣式升級
+- **修復方案**：
+  - **全域 Tooltip**：在 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中更新了 `#global-tooltip` 的樣式：
+    - `font-size` 由 `0.75rem` 放大 125% 至 **`0.94rem`** (約 15px)。
+    - `max-width` 由 `280px` 擴增至 **`350px`**，避免折行過於密集。
+    - `background` 改為完全不透明之 **純黑底 (#000)**，並搭配 `border: 1px solid rgba(255, 255, 255, 0.2)` 及 `box-shadow: 0 10px 25px rgba(0, 0, 0, 0.85)`，呈現高品質實體不透明對比。
+  - **圖表 Tooltip**：同步以 Python 腳本更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中 7 個 ECharts 圖表的 tooltip 屬性，將其背景設定為純黑 `#000` 且 fontSize 放大至 `15`，實現全站 Tooltip 視覺高度一致性。
+
+### 5. 籌碼集中度 Tooltip 說明公式與分析內容
+- **修復方案**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `renderChipConcentrationChart` 配置中更新了 tooltip formatter 資訊，滑鼠懸浮或點擊時，除了集中度數值，還會多行清晰標註：
+  - **計算公式**：`三大法人淨買賣超張數 / 當日成交張數 * 100%`
+  - **分析內容**：`數值 > 0 表示法人主力吃單買超，籌碼集中度高且傾向看多；數值 < 0 表示法人調節出貨，籌碼傾向分散。`
+
+### 6. Firebase 線上發布
+- 已成功重新發布至線上託管平台！
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 🖥️ 個股清單版面、操作欄裁剪、60個交易日長歷史與滑鼠跟隨 Tooltip 優化 (最新優化)
+
+### 1. 個股清單前四欄緊湊化 & 移徐垃圾桶裁剪問題
+- **調整方案**：
+  - 更新 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 與 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css)，重新計算並調整自選股與潛力股的 11 個欄位寬度百分比與 `min-width` 限制：
+    - 代號、股名、股價、成交量寬度百分比分別調整為：**`5.5%` / `12%` / `6.5%` / `7.5%`**，使前四欄緊湊密合。
+    - 前四欄的 `min-width` 全數壓低（例如代號 `32px`、股名 `50px`、股價 `38px`、成交量 `42px`），使其在有限寬度內不產生溢出。
+    - 將最末尾的 **操作欄 (Col 11)** 寬度拉大至 **`12%`**，`min-width` 提升至 **`50px`**。這給予了操作欄內的垃圾桶按鈕與狀態 Badge 極充足的展現空間，**徹底解決垃圾桶符號被截斷裁剪的 Bug**。
+
+### 2. 日K線與籌碼圖表歷史展期為 60 個交易日
+- **後端 API 升級**：
+  - 更新 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 的日K線資料抓取：將下載歷史的 period 由 `3mo` 增加至 **`6mo`**，並切片 `tail(60)`，確保在保留 Rolling window 移動平均計算基礎的同時，能展示足量的 **`60個交易日`** K線與成交量。
+  - 更新三大法人與籌碼集中度數據：將 trades 的歷史追蹤切片由 `trades[-20:]` 變更為 **`trades[-60:]`**。
+- **前端變更**：
+  - 更新 [index.html](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.html) 中三大法人淨買賣超與籌碼集中度卡片的主標題文字為 **「(近60日, 單位:張)」** 及 **「近60日籌碼集中度 (%)」**。
+
+### 3. 全局 Tooltip 游標動態跟隨與防溢出邊界演算
+- **修復方案**：
+  - 更新 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的全域 Tooltip 觸發：廢除舊有的相對於元素 rect 靜態定位。現在新增了 `mousemove` 與行動裝置的 `touchmove` 事件監聽器。
+  - 實作了 `updateGlobalTooltipPosition(e)`，讓 Tooltip 不論在滑鼠移動或手指拖曳時，皆會**流暢跟隨游標動態飄移**。
+  - 演算中加入了嚴格的視窗邊界限制：左右若即將溢出，會自動向內限縮對齊；若游標上方的高度不足（即將超出瀏覽器頂部），Tooltip 會自動翻轉至游標下方呈現，**徹底排除 Tooltip 跑掉或被瀏覽器截掉的情況**。
+
+### 4. 籌碼集中度 Tooltip 精簡排版與防裁切
+- **修復方案**：
+  - 在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中為 7 個 ECharts 圖表 tooltip 均補齊了 **`confine: true`** 配置，強制讓 ECharts 內置 Tooltip 不超出 Canvas 外層 div 邊界，完全防止了被卡片邊緣裁剪的物理現象。
+  - 重構了籌碼集中度 tooltip formatter 排版，使用精簡的中文提煉公式與分析含意，並指定 font-size 為一致的 `15px`，排版俐落緊湊。
+
+### 5. Firebase 線上發布
+- 已成功重新發布至線上託管平台！
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 🛠️ Tooltip 縮放比例修正、操作欄移除圖標緊湊化優化 (最新優化)
+
+### 1. 解決 scaled body 下 Tooltip 跟隨偏離（跑掉）問題
+- **問題分析**：系統因為實作了自適應縮放（Viewport Scaling），使得 `body` 被套用 `transform: scale(scaleFactor)`。此時滑鼠或觸控事件提供的 `pageX` / `pageY` 為未縮放之螢幕坐標，而 Tooltip 的 `top` / `left` 位於已縮放的 `body` 坐標系中，導致二者不對等，Tooltip 與游標產生大幅度偏移（離太遠）。
+- **修復方案**：
+  - 在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中實作了 `getBodyScale()`，透過 regex 擷取 `window.getComputedStyle(document.body).transform` 渲染矩陣中的縮放係數。
+  - 在 `updateGlobalTooltipPosition(e)` 中，將游標的 pageX、pageY 坐標以及視窗邊界距離**全數除以 scale 係數**，將其精準轉換至 scaled body 的坐標空間中。現在 Tooltip 不論在任何解析度與自適應縮放比例下，**均能極致貼合游標（不再偏離或跑掉）**。
+
+### 2. 個股清單最末操作欄寬度收窄緊湊化
+- **排版優化**：
+  - 為了縮小操作欄（垃圾桶按鈕）與前面欄位之間的寬度落差，我們將 **操作欄 (Col 11)** 的寬度比例由原先的 `12%` **收窄為 `5.5%`** (CSS)，`min-width` 壓低至 **`35px`**，與 preceding 欄位完全對齊。
+  - 將釋放出的 6.5% 寬度合理分配至其他各欄位，使代號、股名、股價、成交量維持在 **`5.5%` / `12.5%` / `6.5%` / `7.5%`**，讓整體清單的表格資料在寬螢幕下更具連貫性、維持一致緊湊。
+
+### 3. Firebase 線上發布與穿透服務恢復
+- 已重新啟動本地 FastAPI 後端伺服器 (port 8000)。
+- 重新啟動 Cloudflare Tunnel 安全穿透服務，產生了隨機臨時對外網址：
+  👉 `https://owns-extension-scanning-lately.trycloudflare.com`
+- 更新前端程式碼 `CLOUD_FUNCTION_URL` 為此新網址，並成功發布至 Firebase Hosting 線上平台。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 💰 修正整股 (Round Lot) 模式下模擬下單之停損價格與 API 欄位價格計算 (最新修復)
+
+### 1. 問題分析
+- **原因**：當交易模式切換為整股 (ROUND) 時，投入金額輸入框 (`investment-amount`) 為「張數」，而價格輸入框 (`target-buy-price`) 為「買入合計金額 (張數 * 1000 * 當前股價)」且設定為唯讀。
+- 原先的下單功能 `handlePlaceOrder()` 盲目地使用 `parseFloat(targetBuyPriceInput.value)` 作為委託單價 `price`。
+- 這使得在整股模式下，下單單價 `price` 變成了合計的「總金額」（例如：1張台積電，買入總價為 $500,000 元，單股價格應為 $500 元，但委託單價 `price` 被設為 500,000），導致：
+  - 顯示的下單確認彈窗中的「停損觸發價格」與「限價價格」被放大 1000 倍（例如：顯示停損價格為 $475,000.00 元）。
+  - 傳送給後端 `/api/sinopac/order` API 的 `price`, `stop_loss_price`, `stop_profit_price` 也全數放大 1000 倍，造成監控功能價格判定錯誤。
+
+### 2. 解決方案與程式變更
+- 我們更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `handlePlaceOrder()` 函數：
+  - 在進行計算與下單前，先判斷當前是否為整股模式：
+    - 當 `tradeType === "ROUND"` 時，我們改為直接取用全域的單股單價變數 `currentPricePerShare` (若不存在則回退至個股最新價 `selectedStock.current_price`) 作為單股基準單價 `price`。
+    - 當 `tradeType !== "ROUND"` (即零股) 時，依然讀取輸入框的數值。
+  - 這使確認彈窗與 API 請求 body 發送的 `price`、`stop_loss_price` 與 `stop_profit_price` 在整股模式下皆**正確對齊單股價格**。
+
+### 3. 測試與驗證結果
+- 撰寫了單體測試腳本 `test_handle_place_order.js` 驗證下單函數輸出，測試完全通過：
+  - **整股模式驗證**：輸入張數為 `1` 張，現價 $500，計算出總價格 $500,000，點擊下單時，彈窗與發送 API 的委託單價正確維持在 **$500.00**，停損價格正確顯示為 **$475.00** (5% 停損)。
+  - **零股模式驗證**：輸入投入金額 $10,000，點擊下單時，股數正確為 `20` 股，限價單價與停損價格正確維持在 **$500.00** 與 **$475.00**。
+- 隨後，我們已將更新的前端程式碼同步重新部署至 Firebase Hosting。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 🔄 修正切換零股和整股交易模式時設定買入價自動重設之問題 (最新優化)
+
+### 1. 問題分析
+- **原因**：先前在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `tradeTypeSelect` (交易模式選擇器) 的 `change` 事件監聽器中，不論先前是否已自定義或由走勢圖點選帶入價格，只要模式切換（例如從零股切換為整股，或整股切換為零股），全域變數 `currentPricePerShare` 都會強行重設為 `selectedStock.current_price` (當前市場股價)。
+- 這導致使用者在從走勢圖點選代入自定義建議買入價後，一旦切換交易模式，自定義設定買入價格就會瞬間回歸（重置）為最新市場股價，造成體驗不便。
+
+### 2. 解決方案與程式變更
+- 我們更新了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 內的 `tradeTypeSelect` 變更事件處理常式：
+  - 將 `currentPricePerShare = selectedStock.current_price` 修改為防護性判定：僅在 `currentPricePerShare` 尚未被設定時，才預設填入當前股價。
+  - 如果使用者先前已經輸入或點選了特定的買入價，則切換模式時會完整保留該價格（在整股模式下會以該自定義單價計算出正確的合計總價；在零股模式下則直接呈現該單價）。
+
+### 3. 測試與驗證結果
+- **行為驗證**：
+  - 點選個股，預設設定價格為現價。
+  - 從建議價格卡片或分時走勢點擊設定自定義買入價（例如 $490.00）。
+  - 切換模式為「整股 (按張數計算)」，此時「買入合計金額」成功以 $490.00 單價計算（1張 = $490,000 元），並未重置為原本現價計算之金額。
+  - 再次切換回「零股 (按股數計算)」，設定買入價格輸入框依然精準維持在自定義之 **$490.00**，完美符合使用者操作預期。
+- 前端變更均已重新完成 Firebase Hosting 發布部署。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## ⚡ 修正風控監控清單卡片刷新閃爍（快速變長變短）之問題 (最新修復)
+
+### 1. 問題分析
+- **原因**：在原先的 `fetchAndRenderMonitors()` 刷新函數中，更新邏輯是先清空標準監控清單容器 (`monitorsTableBody.innerHTML = ""`)，然後**透過 `await` 非同步等待** `/api/lists` API 回傳移動監控清單資料，最後才在 API 回傳後將新的資料行附加（append）至 DOM 中。
+- 由於系統每 5 秒就會自動刷新一次，且每次刷新都會在清空 DOM 後產生一個非同步的網路請求等待期（約 50ms ~ 150ms 延遲），導致該卡片會在這段時間內高度塌陷（變短），隨後又因資料塞入而撐開（變長），從而在視覺上產生了頻繁的「快速變長變短」閃爍 Bug。
+
+### 2. 解決方案與程式變更
+- We restructured the `fetchAndRenderMonitors()` flow in [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js):
+  - **併行加載**：將原先分步的 `fetch` 改為使用 `Promise.all` 同時併行下載標準風控訂單 (`/api/sinopac/orders`) 與移動停損清單 (`/api/lists`)，避免阻礙式等待。
+  - **同步渲染**：在**所有數據加載完成後**，才在同一段 JavaScript 執行緒同步任務（Sync block）中清空並重新渲染這兩個表格。這意味著在網路加載期間，表格會完整保留舊數據的顯示；加載完畢後 DOM 瞬間替換更新，中間不存在任何 `await` 斷層，**徹底消除了 UI 卡片刷新時的高度閃爍現象**。
+
+### 3. 測試與驗證結果
+- 經由實際頁面運行與輪詢監控，每 5 秒的定期自動刷新更新極為滑順，表格資料瞬間抽換對齊，清單卡片高度極其穩定，完全不再發生任何變長變短或閃爍情況。
+- 前端變更均已重新完成 Firebase Hosting 發布部署。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 📈 走勢圖開盤價優化、R-Ratio實算、底底高欄圖標與防止斷行優化 (最新完成項目)
+
+### 1. 走勢圖開盤價失真優化與 Y 軸縮放調整
+- **問題分析**：先前在後端 `backend/main.py` 中分時走勢的抓取間隔為 `2m`。由於間隔較大，有時會遺漏開盤第一時間的成交點，使得開盤價被錯誤描繪或失真。此外，原本 Y 軸範圍採用 ECharts 的 `scale: true` 自動縮放，有時走勢線會緊貼著圖表的最頂端或最底端，顯得極為壓迫且邊緣裁切嚴重。
+- **修復方案**：
+  - **後端提高解析度**：在 [main.py](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/backend/main.py) 中，將 `yf.Ticker.history` 歷史分時的抓取間隔由 `2m` 提升至 **`1m`**（一分鐘），精確獲取每一分鐘的價格與量，完美畫出包括 9:00 開盤價在內的完整走勢。
+  - **前端 Y 軸擴展 10%**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `renderIntradayChart` 與 `renderPrevIntradayChart` 中計算今日與昨日走勢價格的最高與最低價差（`diff = maxPrice - minPrice`），並動態設置 Y 軸 `min` 為 `minPrice - 0.1 * diff`、`max` 為 `maxPrice + 0.1 * diff`（即上下各放大高低價差的 10% 作為邊界緩衝，如果無波動則使用 +/- 10% 的數值）。這讓折線走勢圖在任何價格下都能呈現出最舒服的上下間距。
+
+### 2. 防止關鍵欄位在電腦版與手機版斷行 (Wrapping)
+- **問題分析**：在較窄的瀏覽器視窗或手機螢幕上，股價、成交量、代號與預期 R 值常因為表格欄寬不足而折行（例如將 `$500.00` 折成 `$500.` 與 `00`），極度影響閱讀美感。
+- **修復方案**：在 [index.css](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/index.css) 中，針對代號、股名、股價、成交量與 R 值等 5 個核心欄位強行指定 **`white-space: nowrap !important;`** 並適度調高了它們的最小寬度（`min-width`），使其在任何寬度的裝置上都絕對保持單行不換行。
+
+### 3. 倉位與風控計算之「實算風暴比」
+- **問題分析**：先前風暴比 (R值) 是基於精確的未四捨五入單價比例計算，但在前端顯示上「預期最大虧損」與「預估潛在獲利」皆經過 `Math.round()` 四捨五入為整數呈現。這導致在小金額或低價股下，使用者用眼睛看到的「預估潛在獲利 / 預期最大虧損」數值與系統上呈現的風暴比可能會有小數點對不上的誤差。此外，當用戶投入金額過低導致可買入股數 (shares) 為 0 時，風暴比卻依然顯示為正常的比例值，顯得不合理（因為此時根本無法建立部位）。
+- **修復方案**：修改了 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `updateCalculations()`：
+  - **實算風暴比**：將風暴比的計算邏輯重構為實際獲利金額除以實際最大虧損金額（`roundedProfit / roundedLoss`）。
+  - **無部位安全保護**：當 `shares <= 0` 或最大虧損為 0 時，風暴比會自動歸零 `0.00`，確保風暴比完全貼合使用者「實際所建立的部位利潤與風險」。
+
+### 4. 移除底底高欄圖標
+- **變更**：在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 的 `renderStockTable` 與 `renderPotentialTable` 中，移成了「底底高」欄位中 badge 徽章前方裝飾用的 `fa-chart-line` 曲線圖形，使其僅單純呈現乾淨俐落的「符/未符合」文字。
+
+### 5. Firebase 部署與後端/穿透重啟驗證
+- 後端 FastAPI 服務與 Cloudflare Tunnel 均已重啟運作，最新的 Tunnel 穿透網址已同步更新於 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中的 `CLOUD_FUNCTION_URL`。
+- 前端網頁已重新完成 Firebase Hosting 部署。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**
+
+---
+
+## 🕒 修正今日與昨日走勢圖未畫滿至 13:30 收盤時間之問題 (最新修復)
+
+### 1. 問題分析
+- **原因**：原本的走勢圖 X 軸資料是直接讀取 Yahoo Finance 回傳的數據時間點（如 `09:00`、`09:02` 等）。當收盤前五分鐘沒有成交紀錄，或是當前盤中時間尚未到達 13:30 時，X 軸就會直接在最後一個成交點時間截止（例如僅顯示到 `13:25`），且圖表寬度會隨之收窄，無法呈現出台股 09:00 至 13:30 完整的收盤時間軸。
+
+### 2. 解決方案與程式變更
+- 我們在 [app.js](file:///C:/Users/hopes/.gemini/antigravity/scratch/tw_stock_odd_lot/frontend/app.js) 中重構了走勢圖的渲染架構：
+  - **固定交易時間軸**：新增全域 helper 函數 `generateIntradayTimeline()`，預先產生台股完整的 **271 分鐘時間軸（自 09:00 至 13:30 每分鐘一個點）**。
+  - **資料精準對齊**：將 yfinance 回傳的一分鐘高解析資料透過 Map 與時間軸進行一對一對應：
+    - 如果某分鐘有成交，則呈現該價格。
+    - 如果某分鐘沒有成交（如交易冷清），系統會自動**往前進行價格補值 (Forward Fill)**，成交量設為 `0`，以維持線條連貫。
+    - **防止未來補值**：取得資料庫中的最新時間點 `maxTime`，如果時間在 `maxTime` 之後（如盤中 10:30 以後的時間），系統會**強制補入 `null`**，以讓折線在最新價格處正常截止，而不會畫出一條長長的水平未來線。
+  - **Tooltip 安全防護**：對 `xAxis` 和 `yAxis` 圖表提示框的 formatter 加入了 null-safe 防崩潰校驗，以避免游標移動至尚未開盤/未來空白區間時因為 `.toFixed(2)` 調用 null 導致 JavaScript 報錯崩潰。
+
+### 3. 測試與驗證結果
+- 重新整理頁面後，今日與昨日的走勢圖 X 軸已完美固定為 **09:00 ~ 13:30**。即使在 13:25 以後成交量稀疏或收盤後，圖表的折線與背景均會非常精確且漂亮地畫滿至 **13:30** 整。
+- 前端變更已重新完成 Firebase Hosting 部署。
+- 👉 線上存取網址：**[https://tw-stock-quant.web.app](https://tw-stock-quant.web.app)**

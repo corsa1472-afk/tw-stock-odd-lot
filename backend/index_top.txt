@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 加入 user-scalable=no 避免手機雙指縮放導致當機 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>台股量化選股掘金與風控計算</title>
+    <link rel="icon" type="image/jpeg" href="favicon.jpg">
+    <meta name="description" content="台股量化選股與倉位風控計算系統，支援 Yahoo 熱門股追蹤與全市場底部潛力股掃描，自動計算 MA/KD 交叉、多頭排列、自訂%數停損與風暴比。">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="index.css?v=1.0.5">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="app.js?v=1.0.25" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <img src="favicon.jpg" alt="Logo" class="logo-img">
+                <div class="logo-text">
+                    <h1>台股量化選股掘金<span>與風控計算</span></h1>
+                    <p class="subtitle" style="line-height: 1.6;"><strong>【進場條件】</strong><br>
+1. 大時框（日線）定方向：個股股價在 20 MA（月線）與 60 MA（季線）之上，且均線架構維持多頭排列。<br>
+2. 小時框（60分K）打底確認：當個股隨大盤回檔時，60分K 的擺盪指標（KD 或 RSI）進入 50 以下。<br>
+3. 次數平衡發動點：在 60分K 中，擺盪指標在低檔（小於 40）出現 第 2 次或第 3 次黃金交叉（打底形態完成），且當日伴隨成交量微幅放大時進場。</p>
+                </div>
+            </div>
+            <div class="status-badge connected" id="api-status" data-tooltip="台灣股市 (TWSE/TPEx) 盤中報價在 Yahoo Finance 有約 15 分鐘延遲">
+                <span class="status-dot"></span>
+                <span class="status-text"><i class="fa-solid fa-chart-line" style="margin-right:4px; font-size:0.8rem;"></i> Yahoo 數據 (延遲15分)</span>
+            </div>
+        </header>
+
+        <!-- Disclaimer / Warning Banner -->
+        <div class="disclaimer-banner" style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.15); border-radius: 8px; font-size: 0.6rem; color: #fca5a5; line-height: 1.4;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: var(--color-danger); font-size: 0.85rem; flex-shrink: 0;"></i>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 4px;">
+                <span>本系統所提供之所有資料僅供參考，股市投資具有高風險，投資人應獨立思考、審慎評估，自行承擔所有決策之風險與盈虧。</span>
+                <span class="disclaimer-author" style="margin-left: auto; white-space: nowrap;">［頁面設計：斌｜加工：antigravity2］</span>
+            </div>
+        </div>
+
+        <!-- Tab Navigation Bar -->
+        <nav class="app-tabs">
+            <button class="tab-btn active" id="tab-a-btn"><i class="fa-solid fa-fire"></i> 熱門股即時追蹤面板</button>
+            <button class="tab-btn" id="tab-b-btn"><i class="fa-solid fa-gem"></i> 全市場底部潛力股掘金面板</button>
+        </nav>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Column: Settings and Scanner -->

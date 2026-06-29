@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Logs
+*.log
+*.err
+*.out
+shioaji.log
+
+# Binaries
+cloudflared.exe
+cloudflared.pid
+
+# Firebase
+.firebase/
+
+# Runtime data/cache JSON files (exclude config files)
+*.json
+!firebase.json
+!.firebaserc
+!frontend/config.json
+!backend/requirements.txt
+!backend/trending_stocks.json
+
+# Trailing comma/whitespace files
+*.txt
+!backend/requirements.txt
+!backend/calc_inputs.txt
+!backend/index_header.txt
+!backend/index_monitors.txt
+!backend/index_snippet.txt
+!backend/index_top.txt
+!backend/walkthrough.txt
+
+# Virtual env
+.env
+.venv/
+env/
+venv/
+ENV/

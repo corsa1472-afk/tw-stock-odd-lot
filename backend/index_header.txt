@@ -1,0 +1,70 @@
+            <div class="left-column" style="display: flex; flex-direction: column; gap: 2rem;">
+                
+                <!-- Tab A Panel: Stock List & Scanner -->
+                <section class="panel-card glass-panel" id="scanner-section">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-square-poll-horizontal"></i> 熱門強勢股 <span id="popular-count-label" style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-left: 8px;"></span><span id="popular-update-time" style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-left: 10px;"></span></h2>
+                        <div class="actions" style="display: flex; gap: 8px;">
+                            <button id="refresh-btn" class="icon-btn btn-primary" title="重新整理技術指標">
+                                <i class="fa-solid fa-rotate"></i> 重新整理
+                            </button>
+                            <button id="refresh-popular-btn" class="icon-btn btn-secondary" title="重刷 Yahoo 熱門排行">
+                                <i class="fa-solid fa-fire"></i> 重刷熱門
+                            </button>
+                            <button id="import-text-btn" class="icon-btn btn-secondary" title="匯入文字檔批次新增">
+                                <i class="fa-solid fa-file-import"></i> 文字檔加入
+                            </button>
+                            <input type="file" id="text-file-input" accept=".txt" style="display: none;">
+                        </div>
+                    </div>
+
+                    <!-- Add Stock Bar -->
+                    <form id="add-stock-form" class="add-stock-bar">
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="stock-code-input" placeholder="輸入台股代號 (如: 2330, 2317)..." maxlength="6" required autocomplete="off">
+                        </div>
+                        <button type="submit" class="btn btn-submit" id="add-btn">
+                            <i class="fa-solid fa-plus"></i> 新增追蹤
+                        </button>
+                    </form>
+
+                    <!-- Criteria Summary Bar -->
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 0.75rem; padding: 10px 14px; background: rgba(99,102,241,0.07); border-radius: 10px; border: 1px solid rgba(99,102,241,0.15); font-size: 0.78rem; color: var(--text-secondary); align-items: center;">
+                        <span style="color: var(--color-primary); font-weight: 700; margin-right: 4px;"><i class="fa-solid fa-filter"></i> 篩選條件：</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">① 預期風暴比 R值 >= 1.0</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: #f59e0b; font-weight: 700;"><i class="fa-solid fa-arrow-down-wide-short"></i> 排序：進場訊號 > 符合燈號數 > 風暴比 > 成交量</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: var(--text-muted);" data-tooltip="台灣股市盤中報價在 Yahoo Finance 有約 15 分鐘延遲。此清單之價格非自動刷新，請點擊上方「重新整理」按鈕手動更新。"><i class="fa-solid fa-clock"></i> 股價：延遲15分 (手動重刷)</span>
+                    </div>
+
+                    <!-- Stock List Table -->
+                    <div class="table-container">
+                        <table class="stock-table" id="stock-table">
+                            <thead>
+                                <tr>
+                                    <th>代號</th>
+                                    <th>股名</th>
+                                    <th>股價</th>
+                                    <th>成交量</th>
+                                    <th>日線<br>趨勢<br><span style="font-size: 0.7em; color: var(--text-secondary); text-transform: none;">MA20 > MA60</span></th>
+                                    <th>60分K<br>打底<br><span style="font-size: 0.7em; color: var(--text-secondary); text-transform: none;">低檔交叉2-3次</span></th>
+                                    <th>進場訊號</th>
+                                    <th>底底高<br><span style="font-size: 0.7em; color: var(--text-secondary); text-transform: none;">Higher Lows</span></th>
+                                    <th>加分項目<br><span style="font-size: 0.7em; color: var(--text-secondary); text-transform: none;">帶/估/破/勢/歸</span></th>
+                                    <th>
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                            <span style="line-height: 1.2;">預期風暴比<br><span style="font-size: 0.7em; color: var(--text-secondary); text-transform: none;">R值</span></span>
+                                            <i class="fa-solid fa-circle-info" data-tooltip="風暴比(R值) = 預期潛在獲利 / 預期最大虧損。&#10;數值越大代表這筆交易越划算。&#10;例如 R=2 代表承擔 1 元的風險去賺取 2 元的利潤。&#10;此數值會隨您的「買入價格」、「停損比例」與「前高停利價格」變動。" style="color: var(--text-muted); cursor: help; font-size: 0.85em; margin-left: 2px;"></i>
+                                        </div>
+                                    </th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body">
+                                <tr class="table-placeholder">
+                                    <td colspan="11">
+                                        <div class="skeleton-loader">
+                                            <div class="spinner"></div>
+                                            <p>正在分析股票技術指標，請稍候...</p>

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 加入 user-scalable=no 避免手機雙指縮放導致當機 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>量化選股與風控</title>
+    <link rel="icon" type="image/jpeg" href="favicon.jpg">
+    <meta name="description" content="台股量化選股與倉位風控計算系統，支援 Yahoo 熱門股追蹤與全市場底部潛力股掃描，自動計算 MA/KD 交叉、多頭排列、自訂%數停損與風報比。">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="index.css?v=v1.6.48">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="app.js?v=v1.6.48" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <img src="favicon.jpg" alt="Logo" class="logo-img">
+                <div class="logo-text">
+                    <h1>量化選股<span>與風控</span></h1>
+                    <p class="subtitle" style="line-height: 1.6; font-size: 0.72rem;"><strong>【進場條件】</strong><br>
+1. 大時框（日線）定方向：個股股價在 20 MA（月線）與 60 MA（季線）之上，且均線架構維持多頭排列。<br>
+2. 小時框（60分K）打底確認：當個股隨大盤回檔時，60分K 的擺盪指標（KD 或 RSI）進入 50 以下。<br>
+3. 次數平衡發動點：在 60分K 中，擺盪指標在低檔（小於 40）出現 第 2 次或第 3 次黃金交叉（打底形態完成），且當日伴隨成交量微幅放大時進場。</p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <!-- Visitor Counter Badge -->
+                <div class="visitor-counter-badge header-status-pill" id="visitor-counter" title="點擊設定此裝置位置 (家/公司/手機)">
+                    <i class="fa-solid fa-users" style="color: var(--color-primary);"></i>
+                    <span>訪問數：</span>
+                    <span id="visit-home" style="color: #60a5fa; font-weight: 600;" title="家">家:<span class="count">0</span></span>
+                    <span id="visit-company" style="color: #34d399; font-weight: 600;" title="公司">公司:<span class="count">0</span></span>
+                    <span id="visit-phone" style="color: #f59e0b; font-weight: 600;" title="手機">手機:<span class="count">0</span></span>
+                    <span style="color: var(--text-muted); opacity: 0.4;">|</span>
+                    <span id="visit-other" style="color: var(--text-muted);" title="其他訪客">其他:<span class="count">0</span></span>
+                </div>
+                <div class="version-badge header-status-pill" title="代碼更新日期及版次">
+                    <i class="fa-solid fa-code-branch" style="color: var(--color-warning);"></i>
+                    <span id="version-label">版次：v1.6.48 (260629|072259)</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Disclaimer / Warning Banner -->
+        <div class="disclaimer-banner" style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.15); border-radius: 8px; font-size: 0.72rem; color: #fca5a5; line-height: 1.4;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: var(--color-danger); font-size: 0.85rem; flex-shrink: 0;"></i>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 4px;">
+                <span>本系統所提供之所有資料僅供參考，股市投資具有高風險，投資人應独立思考、審慎評估，自行承擔所有決策之風險與盈虧。</span>
+                <span class="disclaimer-author" style="margin-left: auto; white-space: nowrap;">[ 頁面設計：斌 | 加工：antigravity2 | 編修：codex ]</span>
+            </div>
+        </div>
+
+        <!-- Tab Navigation Bar -->
+        <nav class="app-tabs">
+            <button class="tab-btn active" id="tab-a-btn">
+                <span class="market-light tw-market-light" title="台股交易狀態"></span>
+                <i class="fa-solid fa-fire"></i> 熱門股即時追蹤面板
+            </button>
+            <button class="tab-btn" id="tab-b-btn">
+                <span class="market-light tw-market-light" title="台股交易狀態"></span>
+                <i class="fa-solid fa-gem"></i> 全市場底部潛力股掘金面板
+            </button>
+            <button class="tab-btn" id="tab-c-btn">
+                <span class="market-light us-market-light" title="美股交易狀態"></span>
+                <i class="fa-solid fa-earth-americas"></i> 美股追蹤
+            </button>
+        </nav>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Column: Settings and Scanner -->
+            <div class="left-column" style="display: flex; flex-direction: column; gap: 2rem;">
+                
+                <!-- Tab A Panel: Stock List & Scanner -->
+                <section class="panel-card glass-panel animate-fade-in" id="scanner-section">
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <h2><i class="fa-solid fa-square-poll-horizontal"></i> yahoo熱門與自選追蹤</h2>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-left: auto; text-align: right;">
+                            <div style="text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end; font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">
+                                <span id="popular-count-label" style="font-weight: bold; color: var(--text-secondary);">共 0 檔</span>
+                                <span id="popular-update-time">更新時間: -</span>
+                            </div>
+                            <div class="actions" style="display: flex; gap: 8px;">
+                                <button id="refresh-popular-btn" class="icon-btn btn-secondary" title="重刷 Yahoo 熱門排行">
+                                    <i class="fa-solid fa-fire"></i> 重刷熱門
+                                </button>
+                                <input type="file" id="text-file-input" accept=".txt" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Stock Bar -->
+                    <form id="add-stock-form" class="add-stock-bar">
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="stock-code-input" placeholder="輸入代號 或 股名 (如: 2330, 台積電)..." list="all-stocks-list" required autocomplete="off">
+                            <datalist id="all-stocks-list"></datalist>
+                        </div>
+                        <button type="submit" class="btn btn-submit" id="add-btn">
+                            <i class="fa-solid fa-plus"></i> 手動新增
+                        </button>
+                        <button type="button" class="btn btn-submit" id="add-web-btn" style="background: var(--color-success, #10b981); border-color: var(--color-success, #10b981);">
+                            <i class="fa-solid fa-file-import"></i> 文字檔加入
+                        </button>
+                    </form>
+
+                    <!-- Criteria Summary Bar -->
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 0.75rem; padding: 10px 14px; background: rgba(99,102,241,0.07); border-radius: 10px; border: 1px solid rgba(99,102,241,0.15); font-size: 0.78rem; color: var(--text-secondary); align-items: center;">
+                        <span style="color: var(--color-primary); font-weight: 700; margin-right: 4px;"><i class="fa-solid fa-filter"></i> 篩選條件：</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">① 預期風報比 R值 >= 1.0</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: #f59e0b; font-weight: 700;"><i class="fa-solid fa-arrow-down-wide-short"></i> 排序：進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i> &gt; 符合燈號數 &gt; 風報比 &gt; 成交量</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: var(--text-muted);" data-tooltip="台灣股市盤中報價在 Yahoo Finance 有約 15 分鐘延遲。此清單之價格非自動刷新，請點擊上方「重新整理」按鈕手動更新。"><i class="fa-solid fa-clock"></i> 股價：延遲15分 (手動重刷)</span>
+                    </div>
+
+                    <!-- Stock List Table -->
+                    <div class="table-container">
+                        <table class="stock-table" id="stock-table">
+                            <thead>
+                                <tr>
+                                    <th>代號</th>
+                                    <th>股名</th>
+                                    <th id="tab-a-price-header">股價</th>
+                                    <th>漲跌 / 漲幅</th>
+                                    <th>成交量</th>
+                                    <th>日線<br>趨勢<br><span class="desc-tip">收盤價 &gt; MA20 &amp; MA60</span></th>
+                                    <th>60分K<br>打底<br><span class="desc-tip">低檔交叉2~3次</span></th>
+                                    <th>進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i></th>
+                                    <th>底底高/破前高 <i class="fa-solid fa-circle-info morph-rule-info"></i></th>
+                                    <th>加分項目<br><span class="desc-tip">帶/估/破/勢/歸</span></th>
+                                    <th>
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                            <span style="line-height: 1.2;">預期風報比<br><span class="desc-tip">R值</span></span>
+                                            <i class="fa-solid fa-circle-info" data-tooltip="風報比(R值) = 預期潛在獲利 / 預期最大虧損。&#10;數值越大代表這筆交易越划算。&#10;例如 R=2 代表承擔 1 元的風險去賺取 2 元的利潤。&#10;此數值會隨您的「買入價格」、「停損比例」與「前高停利價格」變動。" style="color: var(--text-muted); cursor: help; font-size: 0.85em; margin-left: 2px;"></i>
+                                        </div>
+                                    </th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body">
+                                <tr class="table-placeholder">
+                                    <td colspan="11">
+                                        <div class="skeleton-loader">
+                                            <div class="spinner"></div>
+                                            <p>正在分析股票技術指標，請稍候...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- US Stocks Panel -->
+                <section class="panel-card glass-panel hidden animate-fade-in" id="us-section">
+                    <div class="panel-header us-panel-header">
+                        <h2><i class="fa-solid fa-earth-americas"></i> 美股熱門與自選追蹤</h2>
+                        <div class="actions us-panel-actions" style="display: flex; align-items: center; gap: 10px;">
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; line-height: 1.3;">
+                                <span id="scan-us-status-label" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">已載入最新緩存 (篩選出 0 檔 / 掃描 0 檔)</span>
+                                <span style="opacity: 0.6; font-size: 0.7rem; color: var(--text-muted);">(每天盤後掃描一次即可，掃描需時二分鐘)</span>
+                            </div>
+                            <button id="us-filter-btn" class="icon-btn btn-secondary" title="加強篩選：僅顯示符合均線、底底高與風報比 >= 1.0 的個股" style="width: fit-content; white-space: nowrap; padding: 6px 12px;">
+                                <i class="fa-solid fa-filter"></i> 加強篩選
+                            </button>
+                            <button id="scan-us-btn" class="icon-btn btn-primary" title="重新掃描美股全市場 (S&P 500 & Nasdaq 100)" style="width: fit-content; white-space: nowrap; padding: 6px 12px;">
+                                <i class="fa-solid fa-radar"></i> 掃描S&P 500/Nasdaq 100
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- US Scan Progress Bar -->
+                    <div id="scan-us-progress-box" class="hidden" style="background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); margin-top: -0.5rem; margin-bottom: 0.75rem;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:4px;">
+                            <span style="color:var(--color-primary); font-weight:600;"><i class="fa-solid fa-arrows-spin fa-spin"></i> 背景掃描中...</span>
+                            <span id="scan-us-progress-text" style="color:var(--text-muted);">0 / 0 檔 (0%)</span>
+                        </div>
+                        <div class="scan-progress-container">
+                            <div id="scan-us-progress-bar" class="scan-progress-bar"></div>
+                        </div>
+                    </div>
+                    <form id="add-us-stock-form" class="add-stock-bar us-add-stock-bar">
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input id="us-stock-code-input" type="text" list="all-us-stocks-list" maxlength="15" autocomplete="off" placeholder="輸入美股代號（如 COST、TSM）">
+                            <datalist id="all-us-stocks-list"></datalist>
+                        </div>
+                        <button type="submit" id="add-us-btn" class="btn btn-submit">
+                            <i class="fa-solid fa-plus"></i> 手動新增
+                        </button>
+                        <button type="button" id="add-us-web-btn" class="btn btn-submit" style="background: var(--color-success, #10b981); border-color: var(--color-success, #10b981);">
+                            <i class="fa-solid fa-file-import"></i> 文字檔加入
+                        </button>
+                        <input type="file" id="us-text-file-input" accept=".txt" style="display: none;">
+                    </form>
+                    <!-- US Criteria Summary Bar -->
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 0.75rem; padding: 10px 14px; background: rgba(99,102,241,0.07); border-radius: 10px; border: 1px solid rgba(99,102,241,0.15); font-size: 0.78rem; color: var(--text-secondary); align-items: center;">
+                        <span style="color: var(--color-primary); font-weight: 700; margin-right: 4px;"><i class="fa-solid fa-filter"></i> 篩選條件：</span>
+                        <div id="us-criteria-spans" style="display: contents;">
+                            <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px; color: var(--text-secondary);">載入中...</span>
+                        </div>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: #f59e0b; font-weight: 700;"><i class="fa-solid fa-arrow-down-wide-short"></i> 排序：進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i> > 符合燈號數 > 風報比 > 成交量</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: var(--text-muted);" data-tooltip="美股股價來自 Yahoo Finance 盤中延遲約 15 分鐘。請點擊「重新整理」或「重新掃描美股全市場」即可更新價格。"><i class="fa-solid fa-clock"></i> 股價：延遲15分</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="stock-table" id="us-stock-table">
+                            <thead>
+                                <tr>
+                                    <th>代號</th>
+                                    <th>股名</th>
+                                    <th id="tab-c-price-header">股價</th>
+                                    <th>漲跌 / 漲幅</th>
+                                    <th>成交量</th>
+                                    <th>日線<br>趨勢<br><span class="desc-tip">收盤價 > MA20 &amp; MA60</span></th>
+                                    <th>60分K<br>打底<br><span class="desc-tip">低檔交叉2~3次</span></th>
+                                    <th>進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i></th>
+                                    <th>底底高/破前高 <i class="fa-solid fa-circle-info morph-rule-info"></i></th>
+                                    <th>加分項目<br><span class="desc-tip">帶/估/破/勢/歸</span></th>
+                                    <th>
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                            <span style="line-height: 1.2;">預期風報比<br><span class="desc-tip">R值</span></span>
+                                            <i class="fa-solid fa-circle-info" data-tooltip="風報比(R值) = 預期潛在獲利 / 預期最大虧損。&#10;數值越大代表這筆交易越划算。&#10;例如 R=2 代表承擔 1 元的風險去賺取 2 元的利潤。&#10;此數值會隨您的「買入價格」、「停損比例」與「前高停利價格」變動。" style="color: var(--text-muted); cursor: help; font-size: 0.85em; margin-left: 2px;"></i>
+                                        </div>
+                                    </th>
+                                    <th class="actions-col">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="us-stock-table-body">
+                                <tr class="table-placeholder">
+                                    <td colspan="11"><div class="skeleton-loader"><div class="spinner"></div><p>正在分析美股技術指標，請稍候...</p></div></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Tab B Panel: All-Market Potential Bottom Stocks Scanner -->
+                <section class="panel-card glass-panel hidden animate-fade-in" id="potential-section">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-radar"></i> 全市場底部潛力股掃描</h2>
+                        <div class="actions" style="display: flex; align-items: center; gap: 10px;">
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; line-height: 1.3;">
+                                <span id="scan-status-label" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">已載入緩存</span>
+                                <span id="scan-status-subtext" style="opacity:0.6; font-size: 0.7rem; color: var(--text-muted);">(每天盤後掃描一次即可，掃描需時一至二分鐘)</span>
+                            </div>
+                            <button id="scan-btn" class="icon-btn btn-primary" title="重新掃描全市場 (上市櫃1800+)">
+                                <i class="fa-solid fa-radar"></i> 重新掃描全市場
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Scan Progress Bar -->
+                    <div id="scan-progress-box" class="hidden" style="background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); margin-top: -0.5rem;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:4px;">
+                            <span style="color:var(--color-primary); font-weight:600;"><i class="fa-solid fa-arrows-spin fa-spin"></i> 背景掃描中...</span>
+                            <span id="scan-progress-text" style="color:var(--text-muted);">0 / 0 檔 (0%)</span>
+                        </div>
+                        <div class="scan-progress-container">
+                            <div id="scan-progress-bar" class="scan-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Criteria Summary Bar -->
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 0.75rem; padding: 10px 14px; background: rgba(99,102,241,0.07); border-radius: 10px; border: 1px solid rgba(99,102,241,0.15); font-size: 0.78rem; color: var(--text-secondary); align-items: center;">
+                        <span style="color: var(--color-primary); font-weight: 700; margin-right: 4px;"><i class="fa-solid fa-filter"></i> 篩選條件：</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">① 成交量 &gt; 500張</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">② 日線收盤價 &gt; MA20 &amp; MA60（趨勢向上）</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">③ 底底高型態</span>
+                        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:99px;">④ 預期風報比 R值 &gt;= 1.0</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: #f59e0b; font-weight: 700;"><i class="fa-solid fa-arrow-down-wide-short"></i> 排序：進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i> &gt; 符合燈號數 &gt; 風報比 &gt; 成交量</span>
+                        <span style="color: var(--text-muted); margin: 0 4px;">｜</span>
+                        <span style="color: var(--text-muted);" data-tooltip="此為全市場潛力股快取清單，股價來自 Yahoo Finance 盤中延遲約 15 分鐘。請點擊右上角「重新掃描全市場」即可重新選股並取得最新價格。"><i class="fa-solid fa-clock"></i> 股價：延遲15分 (點擊掃描更新)</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="stock-table" id="potential-table">
+                            <thead>
+                                <tr>
+                                    <th>代號</th>
+                                    <th>股名</th>
+                                    <th id="tab-b-price-header">股價</th>
+                                    <th>漲跌 / 漲幅</th>
+                                    <th>成交量</th>
+                                    <th>日線<br>趨勢<br><span class="desc-tip">收盤價 > MA20 &amp; MA60</span></th>
+                                    <th>60分K<br>打底<br><span class="desc-tip">低檔交叉2~3次</span></th>
+                                    <th>進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i></th>
+                                    <th>底底高/破前高 <i class="fa-solid fa-circle-info morph-rule-info"></i></th>
+                                    <th>加分項目<br><span class="desc-tip">帶/估/破/勢/歸</span></th>
+                                    <th>
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                                            <span style="line-height: 1.2;">預期風報比<br><span class="desc-tip">R值</span></span>
+                                            <i class="fa-solid fa-circle-info" data-tooltip="風報比(R值) = 預期潛在獲利 / 預期最大虧損。&#10;數值越大代表這筆交易越划算。&#10;例如 R=2 代表承擔 1 元的風險去賺取 2 元的利潤。&#10;此數值會隨您的「買入價格」、「停損比例」與「前高停利價格」變動。" style="color: var(--text-muted); cursor: help; font-size: 0.85em; margin-left: 2px;"></i>
+                                        </div>
+                                    </th>
+                                    <th class="actions-col">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="potential-table-body">
+                                <tr class="table-placeholder">
+                                    <td colspan="11">
+                                        <div class="skeleton-loader">
+                                            <div class="spinner"></div>
+                                            <p>正在讀取潛力股清單，請稍候...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column Container: Holds all right-side sections -->
+            <div class="right-column" id="calculator-section" style="display: flex; flex-direction: column; gap: 2rem;">
+
+                <!-- Empty State (styled as a standalone card) -->
+                <div class="panel-card glass-panel calc-empty-state" id="calc-empty">
+                    <div class="empty-icon">
+                        <i class="fa-solid fa-hand-pointer"></i>
+                    </div>
+                    <h3>請點選左側股票進行計算</h3>
+                    <p>點擊追蹤列表或潛力股列表中的任何一檔個股，系統將自動連動倉位風控計算機，為您精算適合的股數/張數與掛單風控參數，並生成趨勢技術圖表。</p>
+                </div>
+
+                <!-- Active Calculator Form & All Charts sequentially (styled as separate cards) -->
+                <div class="calc-active-state hidden" id="calc-active" style="display: flex; flex-direction: column; gap: 2rem;">
+                    
+                    <!-- Card 1: Selected Stock Header & Entry Signal -->
+                    <section class="panel-card glass-panel animate-fade-in delay-1" id="calc-signal-card" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="selected-stock-header" style="margin-bottom: 0;">
+                            <div class="stock-info">
+                                <span class="stock-badge" id="calc-stock-code">2330</span>
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                        <h3 id="calc-stock-name" style="margin: 0;">台積電</h3>
+                                        <span id="disposition-badge" class="disposition-badge hidden">處置股</span>
+                                    </div>
+                                    <p id="calc-stock-symbol">2330.TW</p>
+                                </div>
+                            </div>
+                            <div class="stock-price-box">
+                                <span class="price-label" id="calc-price-label">當前股價</span>
+                                <span class="price-val" id="calc-stock-price">$0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="system-status-indicator" id="calc-system-status" style="margin-top: 0;">
+                            <div class="indicator-header">
+                                <span>進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i></span>
+                                <span class="badge" id="calc-signal-badge">未符合</span>
+                            </div>
+                            <p class="indicator-detail" id="calc-signal-reason" style="margin-bottom: 0.75rem;"></p>
+                            
+                            <!-- 60分K KD chart and 60分K K-line chart inside the signal card -->
+                            <div class="chart-section" id="kd-chart-container" style="border: none; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 12px; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div>
+                                    <h4 class="chart-title" style="font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-main);"><i class="fa-solid fa-chart-candlestick"></i> 60分K線圖 (併入 SMA60)</h4>
+                                    <div id="hourly-kline-chart" class="chart-box" style="height: 140px;"></div>
+                                </div>
+                                <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+                                    <h4 class="chart-title" style="font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-main);"><i class="fa-solid fa-wave-square"></i> 60分K KD 指流線</h4>
+                                    <div id="kd-chart" class="chart-box" style="height: 140px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Card 3: Suggested Order Prices & Today's Intraday Chart -->
+                    <section class="panel-card glass-panel animate-fade-in delay-2" id="calc-suggested-card" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-tags"></i> 最近交易日走勢與掛單價設定 <span id="intraday-date-label" style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal; margin-left: 8px;"></span></h2>
+                        </div>
+
+                        <!-- Today's Intraday Chart with Overlay Prices -->
+                        <div class="intraday-chart-wrapper" style="position: relative; background: rgba(0,0,0,0.15); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color);">
+                            <!-- Open, High, Low, Close Overlay Bar inside chart wrapper -->
+                            <div class="chart-price-overlay" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px 10px; text-align: center; font-size: 0.75rem; position: absolute; top: 12px; left: 12px; right: 12px; z-index: 10; pointer-events: none;">
+                                <div><span style="color: var(--text-muted); font-size: 0.65rem; display: block; margin-bottom: 2px;">開盤</span> <span id="ref-open" style="font-weight: 700; color: var(--text-main); font-family: var(--font-outfit);">$0.00</span></div>
+                                <div style="display: none;"><span id="ref-high">$0.00</span><span id="ref-low">$0.00</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.65rem; display: block; margin-bottom: 2px;" id="ref-close-label">收盤</span> <span id="ref-close" style="font-weight: 700; color: var(--text-main); font-family: var(--font-outfit);">$0.00</span></div>
+                            </div>
+                            <!-- Today's Intraday Chart -->
+                            <div id="intraday-chart" class="chart-box" style="height: 250px; margin-top: 5px;"></div>
+                        </div>
+
+                        <!-- Suggested Prices Grid -->
+                        <div class="suggested-prices-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div class="price-suggest-card" id="suggest-card-aggressive" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">積極 (開收均價)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-warning); font-family: var(--font-outfit);" id="suggest-price-aggressive">$0.00</span>
+                            </div>
+                            <div class="price-suggest-card" id="suggest-card-moderate" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">穩健 (收低均價)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-primary); font-family: var(--font-outfit);" id="suggest-price-moderate">$0.00</span>
+                            </div>
+                            <div class="price-suggest-card" id="suggest-card-conservative" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;" id="suggest-conservative-label">保守 (最近交易日低點)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-success); font-family: var(--font-outfit);" id="suggest-price-conservative">$0.00</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Card 3.5: Suggested Order Prices & Previous Intraday Chart -->
+                    <section class="panel-card glass-panel animate-fade-in delay-3" id="calc-prev-suggested-card" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-tags"></i> 前一交易日走勢與掛單價設定 <span id="prev-intraday-date-label" style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal; margin-left: 8px;"></span></h2>
+                        </div>
+
+                        <!-- Previous Intraday Chart with Overlay Prices -->
+                        <div class="intraday-chart-wrapper" style="position: relative; background: rgba(0,0,0,0.15); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color);">
+                            <!-- Open, High, Low, Close Overlay Bar inside chart wrapper -->
+                            <div class="chart-price-overlay" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px 10px; text-align: center; font-size: 0.75rem; position: absolute; top: 12px; left: 12px; right: 12px; z-index: 10; pointer-events: none;">
+                                <div><span style="color: var(--text-muted); font-size: 0.65rem; display: block; margin-bottom: 2px;">開盤</span> <span id="ref-prev-open" style="font-weight: 700; color: var(--text-main); font-family: var(--font-outfit);">$0.00</span></div>
+                                <div style="display: none;"><span id="ref-prev-high">$0.00</span><span id="ref-prev-low">$0.00</span></div>
+                                <div><span style="color: var(--text-muted); font-size: 0.65rem; display: block; margin-bottom: 2px;">收盤</span> <span id="ref-prev-close" style="font-weight: 700; color: var(--text-main); font-family: var(--font-outfit);">$0.00</span></div>
+                            </div>
+                            <!-- Previous Intraday Chart -->
+                            <div id="prev-intraday-chart" class="chart-box" style="height: 250px; margin-top: 5px;"></div>
+                        </div>
+
+                        <!-- Suggested Prices Grid -->
+                        <div class="suggested-prices-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div class="price-suggest-card" id="suggest-prev-card-aggressive" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">積極 (開收均價)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-warning); font-family: var(--font-outfit);" id="suggest-prev-price-aggressive">$0.00</span>
+                            </div>
+                            <div class="price-suggest-card" id="suggest-prev-card-moderate" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">穩健 (收低均價)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-primary); font-family: var(--font-outfit);" id="suggest-prev-price-moderate">$0.00</span>
+                            </div>
+                            <div class="price-suggest-card" id="suggest-prev-card-conservative" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 6px; text-align: center; cursor: pointer; transition: all var(--transition-speed);" title="點擊可代入設定買入價">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">保守 (昨日最低)</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--color-success); font-family: var(--font-outfit);" id="suggest-prev-price-conservative">$0.00</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Card 4: Daily K-line + SMA5/20 + BBAND -->
+                    <section class="panel-card glass-panel animate-fade-in delay-4" id="calc-kline-card">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-chart-candlestick"></i> 日K線與成交量 (近60日, 疊加 SMA5、SMA20、SMA60)</h2>
+                        </div>
+                        <div id="kline-chart" class="chart-box"></div>
+                    </section>
+
+                    <!-- Card 5: Institutional Trading Net Buy/Sell -->
+                    <section class="panel-card glass-panel animate-fade-in delay-5" id="calc-institutional-card">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-users-viewfinder"></i> 三大法人淨買賣超統計 (近60日, 單位:張)</h2>
+                        </div>
+                        <div id="institutional-chart" class="chart-box"></div>
+                    </section>
+
+                    <!-- Card 5.5: Chip Concentration Chart -->
+                    <section class="panel-card glass-panel animate-fade-in delay-6" id="calc-chip-concentration-card">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-chart-area"></i> 籌碼集中度(近60日,%)</h2>
+                        </div>
+                        <div id="chip-concentration-chart" class="chart-box"></div>
+                        <div class="sub-chart-header">
+                            <h3><i class="fa-solid fa-people-group"></i> 大/散戶持股比例 (近一年, TDCC週資料, %)</h3>
+                        </div>
+                        <div id="major-holder-chart" class="chart-box"></div>
+                    </section>
+
+                    <section class="holdings-zone" id="holdings-zone">
+                        <div class="holdings-zone-header">
+                            <h2><i class="fa-solid fa-briefcase"></i> 持股專區</h2>
+                            <span>倉位計算・台股風控・美股風控</span>
+                        </div>
+                        <div class="holdings-zone-content">
+                    <!-- Card 2: Position and Risk Control Calculator -->
+                    <section class="panel-card glass-panel animate-fade-in delay-7" id="calc-params-card" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-calculator"></i> 倉位與風控計算</h2>
+                        </div>
+
+                        <div class="section-block" id="block-calc" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                            <!-- Input Section -->
+                            <div class="form-row-double form-row-buy-stop">
+                                <div class="calc-input-group">
+                                    <label for="target-buy-price" id="buy-price-label">設定買入價格 (台幣)<br><span style="font-size: 0.78em; color: var(--text-secondary); font-weight: normal;">(下方走勢可點擊套用單價)</span></label>
+                                    <div class="amount-input-wrapper">
+                                        <span class="currency-prefix" id="buy-price-prefix">NT$</span>
+                                        <input type="number" inputmode="decimal" id="target-buy-price" min="0.1" max="100000" step="0.1" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="calc-input-group">
+                                    <label for="stop-loss-pct">停損比例 (%)</label>
+                                    <div class="pct-input-wrapper">
+                                        <input type="number" inputmode="decimal" id="stop-loss-pct" min="1" max="50" value="5" step="1" autocomplete="off">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row-double form-row-trade-invest">
+                                <div class="calc-input-group">
+                                    <label for="trade-type">交易模式</label>
+                                    <div class="amount-input-wrapper" style="padding: 0;">
+                                        <select id="trade-type" style="background: transparent; border: none; color: var(--text-main); font-size: 1.0rem; font-weight: 600; width: 100%; outline: none; padding: 10px 14px; cursor: pointer; border-radius: 10px;">
+                                            <option value="ODD" style="background: var(--bg-main); color: var(--text-main);">零股 (按股數計算)</option>
+                                            <option value="ROUND" style="background: var(--bg-main); color: var(--text-main);">整股 (按張數計算，1張=1000股)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="calc-input-group" id="odd-share-count-group">
+                                    <label for="odd-share-count">買入股數</label>
+                                    <div class="amount-input-wrapper">
+                                        <input type="number" inputmode="numeric" pattern="[0-9]*" id="odd-share-count" min="1" max="999999" value="100" step="1" autocomplete="off">
+                                        <span class="input-unit-suffix">股</span>
+                                    </div>
+                                </div>
+                                <div class="calc-input-group">
+                                    <label for="investment-amount">投入金額（台幣）</label>
+                                    <div class="amount-input-wrapper">
+                                        <span class="currency-prefix" id="investment-prefix">NT$</span>
+                                        <input type="number" inputmode="numeric" pattern="[0-9]*" id="investment-amount" min="100" max="10000000" value="20000" step="1000" autocomplete="off">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="quick-amounts" id="quick-amounts" style="margin-top: -0.5rem;">
+                                <button type="button" class="btn-quick-reset" id="btn-quick-reset">歸零</button>
+                                <button type="button" class="btn-quick" data-val="10000">1萬</button>
+                                <button type="button" class="btn-quick" data-val="30000">3萬</button>
+                                <button type="button" class="btn-quick" data-val="50000">5萬</button>
+                                <button type="button" class="btn-quick" data-val="100000">10萬</button>
+                                <button type="button" class="btn-quick" data-val="300000">30萬</button>
+                            </div>
+
+                            <!-- Output Results -->
+                            <div class="calc-results-grid">
+                                <!-- Card 1: Shares -->
+                                <div class="result-card">
+                                    <div class="card-icon"><i class="fa-solid fa-coins"></i></div>
+                                    <div class="card-content">
+                                        <span class="card-label">預估買入數量</span>
+                                        <span class="card-val" id="res-shares">0 <span>股</span></span>
+                                        <span class="card-sub" id="res-actual-cost">實質花費: NT$ 0</span>
+                                    </div>
+                                </div>
+
+                                <!-- Card 4: R-Ratio -->
+                                <div class="result-card" id="r-ratio-card">
+                                    <div class="card-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+                                    <div class="card-content">
+                                        <span class="card-label" style="display: flex; align-items: center; gap: 4px;">
+                                            <span id="r-ratio-label-text">預期風報比 (R值)</span>
+                                            <i class="fa-solid fa-circle-info" data-tooltip="風報比(R值) = 預期潛在獲利 / 預期最大虧損。&#10;數值越大代表這筆交易越划算。&#10;例如 R=2 代表承擔 1 元的風險去賺取 2 元的利潤。&#10;此數值會隨您的「買入價格」、「停損比例」與「前高停利價格」變動。" style="color: var(--text-muted); cursor: help;"></i>
+                                        </span>
+                                        <span class="card-val" id="res-r-ratio">0.00</span>
+                                        <span class="card-sub" id="res-r-comment">賺賠比評估</span>
+                                    </div>
+                                </div>
+
+                                <!-- Card 3: Stop Profit -->
+                                <div class="result-card success-theme">
+                                    <div class="card-icon"><i class="fa-solid fa-circle-arrow-up"></i></div>
+                                    <div class="card-content">
+                                        <span class="card-label">預估前高停利價格</span>
+                                        <span class="card-val" id="res-stop-profit">$0.00</span>
+                                        <span class="card-sub text-success" id="res-profit-gain">預估潛在獲利: NT$ +0</span>
+                                    </div>
+                                </div>
+
+                                <!-- Card 2: Stop Loss -->
+                                <div class="result-card danger-theme">
+                                    <div class="card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                                    <div class="card-content">
+                                        <span class="card-label" id="stop-loss-label">嚴格 5% 停損價格</span>
+                                        <span class="card-val" id="res-stop-loss">$0.00</span>
+                                        <span class="card-sub text-danger" id="res-risk-loss">預期最大虧損: NT$ -0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mock Order Section -->
+                            <div class="sinopac-order-section" id="sinopac-order-section" style="border-top: 1px solid var(--border-color); padding-top: 1.25rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                                <div class="section-subtitle" style="display: flex; align-items: center; justify-content: space-between;">
+                                    <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);"><i class="fa-solid fa-paper-plane" style="color: var(--color-primary); margin-right: 6px;"></i> 下單預覽</span>
+                                </div>
+                                <div class="order-inputs-preview" style="background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03);">
+                                    <div>
+                                        <span style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">收盤限價</span>
+                                        <span id="order-preview-price" style="font-weight: 700; font-family: var(--font-outfit); font-size: 1rem; color: var(--color-warning);">$0.00</span>
+                                    </div>
+                                    <div>
+                                        <span style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">委託數量</span>
+                                        <span id="order-preview-shares" style="font-weight: 700; font-family: var(--font-outfit); font-size: 1rem; color: var(--text-main);">0 股</span>
+                                    </div>
+                                    <div>
+                                        <span style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">停損觸發價</span>
+                                        <span id="order-preview-stoploss" style="font-weight: 700; font-family: var(--font-outfit); font-size: 1rem; color: var(--color-danger);">$0.00</span>
+                                    </div>
+                                    <div>
+                                        <span style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">停利觸發價</span>
+                                        <span id="order-preview-stopprofit" style="font-weight: 700; font-family: var(--font-outfit); font-size: 1rem; color: var(--color-success);">$0.00</span>
+                                    </div>
+                                </div>
+                                <div class="order-actions" style="display: flex; gap: 10px; align-items: center;">
+                                    <button type="button" class="btn btn-primary" id="btn-submit-order" style="flex: 1; background: linear-gradient(135deg, var(--color-primary) 0%, #4338ca 100%); height: 42px; border-radius: 8px; font-weight: 700;">
+                                        <i class="fa-solid fa-paper-plane" style="margin-right: 6px;"></i> 新增未買入風控單
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Card 6: Active Wind-Control Monitors -->
+                    <section class="panel-card glass-panel animate-fade-in delay-1" id="calc-monitors-card">
+                        <div class="panel-header" style="justify-content: space-between; display: flex; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0;"><i class="fa-solid fa-shield-halved" style="color: var(--color-primary); margin-right: 6px;"></i> 風控清單</h2>
+                            <div style="text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);" id="monitor-count-label">共 0 檔監控中</span>
+                                <span class="monitor-frequency-label" id="monitor-frequency-label"><i class="fa-solid fa-arrows-rotate"></i> 台股交易日 09:00–13:30，每 20 秒背景刷新</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container" style="margin-top: 1rem;">
+                            <table class="stock-table" id="monitors-table" style="font-size: 0.825rem;">
+                                <thead>
+                                    <tr>
+                                        <th>個股</th>
+                                        <th>買入價 / 數量</th>
+                                        <th>小計</th>
+                                        <th id="monitor-price-header">即時價</th>
+                                        <th>漲跌 / 漲幅</th>
+                                        <th>停損 / 停利</th>
+                                        <th>風控燈號</th>
+                                        <th>進場訊號 <i class="fa-solid fa-circle-info entry-signal-info"></i><br><span class="desc-tip">未買入可買 / 已買入可加碼</span></th>
+                                        <th>風報比</th>
+                                        <th class="actions-col">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monitors-table-body">
+                                    <tr class="table-placeholder">
+                                        <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                            <i class="fa-solid fa-folder-open" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block; color: rgba(255,255,255,0.15);"></i>
+                                            無進行中的風控監控項目
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- US Risk Control List -->
+                    <section class="panel-card glass-panel animate-fade-in delay-2" id="us-monitors-card" style="margin-top: 1rem;">
+                        <div class="panel-header" style="justify-content: space-between; display: flex; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0;"><i class="fa-solid fa-earth-americas" style="color:var(--color-primary);margin-right:6px;"></i> 美股風控清單</h2>
+                            <div style="text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);" id="us-monitor-count-label">共 0 檔</span>
+                                <span class="monitor-frequency-label"><i class="fa-solid fa-arrows-rotate"></i> 美股交易日 09:30–16:00（美東），每 20 秒背景刷新</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container" style="margin-top: 1rem;">
+                            <table class="stock-table" id="us-monitors-table" style="font-size: 0.825rem;">
+                                <thead>
+                                    <tr>
+                                        <th>個股</th>
+                                        <th>買入價 / 數量</th>
+                                        <th>小計</th>
+                                        <th id="us-monitor-price-header">即時價</th>
+                                        <th>漲跌 / 漲幅</th>
+                                        <th>停損 / 停利</th>
+                                        <th>風控燈號</th>
+                                        <th>
+                                            進場訊號
+                                            <i class="fa-solid fa-circle-info entry-signal-info"></i>
+                                            <br><span class="desc-tip">未買入可買 / 買入可加碼</span>
+                                        </th>
+                                        <th>風報比</th>
+                                        <th class="actions-col">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="us-monitors-table-body">
+                                    <tr class="table-placeholder">
+                                        <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                            <i class="fa-solid fa-folder-open" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block; color: rgba(255,255,255,0.15);"></i>
+                                            尚無美股風控項目
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                        </div>
+                    </section>
+
+                </div>
+
+                </div>
+            </div>
+        </main>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toast-container"></div>
+</div>
+</body>
+</html>
+
