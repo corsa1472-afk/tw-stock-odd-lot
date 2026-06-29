@@ -2819,23 +2819,34 @@ def do_tw_analysis():
         code = str(row.get("code", "")).upper()
         quote = official_quotes.get(code)
         if not quote:
+            row["is_intraday"] = market_open
             continue
         if quote.get("price") is not None:
-            price = round(quote["price"], 2)
-            row["current_price"] = price
-            row["stop_loss_price"] = round(price * 0.95, 2)
-            prev_high = row.get("prev_high")
-            risk = price - row["stop_loss_price"]
-            if prev_high is not None and risk > 0:
-                row["r_value"] = round((prev_high - price) / risk, 2)
+            if market_open:
+                # Only update current_price from TWSE MIS during trading hours
+                price = round(quote["price"], 2)
+                row["current_price"] = price
+                row["stop_loss_price"] = round(price * 0.95, 2)
+                prev_high = row.get("prev_high")
+                risk = price - row["stop_loss_price"]
+                if prev_high is not None and risk > 0:
+                    row["r_value"] = round((prev_high - price) / risk, 2)
+            else:
+                # After hours: keep yfinance current_price, just use it for change calc
+                price = row.get("current_price")
             
-            ref_price = quote.get("reference") or row.get("reference_price")
-            if ref_price:
-                row["reference_price"] = ref_price
-                row["price_change"] = round(price - ref_price, 2)
-                row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
-        if quote.get("volume") is not None:
+            if price is not None:
+                ref_price = quote.get("reference") or row.get("reference_price")
+                if ref_price:
+                    row["reference_price"] = ref_price
+                    row["price_change"] = round(price - ref_price, 2)
+                    row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
+        if market_open and quote.get("volume") is not None:
             row["volume_lots"] = int(quote["volume"])
+        if quote.get("limit_up"):
+            row["limit_up"] = quote["limit_up"]
+        if quote.get("limit_down"):
+            row["limit_down"] = quote["limit_down"]
         row["quote_source"] = quote["source"]
         row["quote_time"] = quote["time"]
         row["is_intraday"] = market_open
@@ -2964,25 +2975,32 @@ def overlay_realtime_quotes(stocks, cached_data, market_open):
         quote = official_quotes.get(code)
         if quote:
             if quote.get("price") is not None:
-                price = round(quote["price"], 2)
-                row["current_price"] = price
-                row["stop_loss_price"] = round(price * 0.95, 2)
+                if market_open:
+                    # Only update current_price from TWSE MIS during trading hours
+                    price = round(quote["price"], 2)
+                    row["current_price"] = price
+                    row["stop_loss_price"] = round(price * 0.95, 2)
+                    
+                    prev_high = row.get("prev_high")
+                    risk = price - row["stop_loss_price"]
+                    if prev_high is not None and prev_high > 0 and risk > 0:
+                        row["r_value"] = round((prev_high - price) / risk, 2)
+                else:
+                    price = row.get("current_price")
                 
-                # Check if we have prev_high in the row
-                prev_high = row.get("prev_high")
-                risk = price - row["stop_loss_price"]
-                if prev_high is not None and prev_high > 0 and risk > 0:
-                    row["r_value"] = round((prev_high - price) / risk, 2)
-                
-                # Yesterday's closing price
-                ref_price = quote.get("reference") or row.get("reference_price")
-                if ref_price:
-                    row["reference_price"] = ref_price
-                    row["price_change"] = round(price - ref_price, 2)
-                    row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
+                if price is not None:
+                    ref_price = quote.get("reference") or row.get("reference_price")
+                    if ref_price:
+                        row["reference_price"] = ref_price
+                        row["price_change"] = round(price - ref_price, 2)
+                        row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
             
-            if quote.get("volume") is not None:
+            if market_open and quote.get("volume") is not None:
                 row["volume_lots"] = int(quote["volume"])
+            if quote.get("limit_up"):
+                row["limit_up"] = quote["limit_up"]
+            if quote.get("limit_down"):
+                row["limit_down"] = quote["limit_down"]
             row["quote_source"] = quote["source"]
             row["quote_time"] = quote["time"]
             row["is_intraday"] = market_open
