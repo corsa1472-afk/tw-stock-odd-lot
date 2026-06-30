@@ -196,9 +196,9 @@ let activeTab = "tab-a"; // tab-a, tab-b, or tab-c
 let currentPricePerShare = 0;
 let oddLotInputSource = "amount";
 
-const APP_VERSION = "v1.6.52";
+const APP_VERSION = "v1.6.53";
 const APP_REVISION_DATE = "260630";
-const APP_REVISION_TIME = "135759";
+const APP_REVISION_TIME = "154114";
 
 // Load lists from cloud storage
 async function loadStocksFromStorage() {
@@ -1604,8 +1604,7 @@ async function handleTextFileSelect(e) {
             if (response.ok) {
                 alert(`檔案共找到 ${resData.total_found} 個個股\n重複 ${resData.duplicates} 個\n成功加入 ${resData.added} 個！`);
                 showToast(`成功從文字檔匯入 ${resData.added} 個新股！`, "success");
-                await fetchAndAnalyzeStocks(false);
-                await saveStocksToStorage();
+                await fetchAndAnalyzeStocks(true); // force-refresh to generate new backend cache including imported items
             } else {
                 showToast(resData.detail || "檔案加入失敗", "danger");
             }
@@ -2137,9 +2136,26 @@ async function handleAddTrackFromTable(code) {
         
         if (response.ok) {
             showToast(`成功將 ${resData.name} (${resData.code}) 新增至追蹤清單！`, "success");
-            await fetchAndAnalyzeStocks(false);
+            
+            // Push stub to local memory to immediately update UI without waiting for background cache refresh
+            const found = potentialStocksData.find(s => s.code === code);
+            const newStub = found ? { ...found, added_by: "scan" } : {
+                code: code,
+                symbol: resData.symbol,
+                name: resData.name,
+                added_by: "scan",
+                current_price: null
+            };
+            if (!currentStocksData.some(s => s.code === code)) {
+                currentStocksData.push(newStub);
+            }
+            
+            // Refresh tables locally
+            renderStockTable(currentStocksData);
             renderPotentialTable(potentialStocksData);
-            await saveStocksToStorage();
+            
+            // Request silent background update to populate technical indicators
+            fetchAndAnalyzeStocks(false, true);
         } else {
             showToast(resData.detail || "無法新增此股票", "danger");
         }
@@ -4341,14 +4357,32 @@ async function handleAddStock() {
         if (response.ok) {
             showToast(`成功將 ${resData.name} (${resData.code}) 新增至追蹤清單！`, "success");
             stockCodeInput.value = "";
-            await fetchAndAnalyzeStocks(false);
-            await saveStocksToStorage();
             
-            // Auto-select the newly added stock
-            const newlyAdded = currentStocksData.find(s => s.code === resData.code);
-            if (newlyAdded) {
-                selectStockRow(newlyAdded, true);
+            // Construct local stub to immediately show in track list
+            const newStub = {
+                code: resData.code,
+                symbol: resData.symbol,
+                name: resData.name,
+                added_by: resData.added_by || "manual",
+                current_price: null,
+                reference_price: null,
+                price_change: null,
+                price_change_percent: null,
+                is_intraday: false
+            };
+            
+            if (!currentStocksData.some(s => s.code === resData.code)) {
+                currentStocksData.push(newStub);
             }
+            
+            // Refresh table locally
+            renderStockTable(currentStocksData);
+            
+            // Trigger silent background update for calculations
+            fetchAndAnalyzeStocks(false, true);
+            
+            // Select row immediately
+            selectStockRow(newStub, true);
         } else {
             showToast(resData.detail || "無法新增此股票", "danger");
         }
@@ -4379,7 +4413,6 @@ async function handleDeleteStock(code, name) {
             }
             currentStocksData = currentStocksData.filter(stock => stock.code !== code);
             renderStockTable(currentStocksData);
-            await saveStocksToStorage();
         } else {
             const resData = await response.json();
             showToast(resData.detail || "無法刪除股票", "danger");
