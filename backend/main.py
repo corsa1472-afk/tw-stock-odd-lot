@@ -2788,6 +2788,49 @@ def add_stock(req: AddStockRequest):
     stocks.append(new_stock)
     write_stock_list(stocks)
     
+    # Analyze the new stock immediately and merge it into tw_analysis_cache.json
+    try:
+        analysis_result = analyze_single_stock(new_stock)
+        
+        # Merge official quote information
+        official_quotes = fetch_twse_realtime_quotes([new_stock])
+        quote = official_quotes.get(code)
+        if quote:
+            if quote.get("price") is not None and quote["price"] > 0:
+                price = round(quote["price"], 2)
+                analysis_result["current_price"] = price
+                analysis_result["stop_loss_price"] = round(price * 0.95, 2)
+                prev_high = analysis_result.get("prev_high")
+                risk = price - analysis_result["stop_loss_price"]
+                if prev_high is not None and risk > 0:
+                    analysis_result["r_value"] = round((prev_high - price) / risk, 2)
+                
+                ref_price = quote.get("reference") or analysis_result.get("reference_price")
+                if ref_price:
+                    analysis_result["reference_price"] = ref_price
+                    analysis_result["price_change"] = round(price - ref_price, 2)
+                    analysis_result["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
+            if quote.get("volume") is not None and int(quote["volume"]) > 0:
+                analysis_result["volume_lots"] = int(quote["volume"])
+            if quote.get("limit_up"):
+                analysis_result["limit_up"] = quote["limit_up"]
+            if quote.get("limit_down"):
+                analysis_result["limit_down"] = quote["limit_down"]
+            analysis_result["quote_source"] = quote["source"]
+            analysis_result["quote_time"] = quote["time"]
+            analysis_result["is_intraday"] = is_tw_market_open()
+        
+        if os.path.exists(TW_ANALYSIS_CACHE_FILE):
+            with open(TW_ANALYSIS_CACHE_FILE, "r", encoding="utf-8") as file:
+                cached = json.load(file)
+            if isinstance(cached, list):
+                cached = [row for row in cached if str(row.get("code", "")).upper() != code]
+                cached.append(analysis_result)
+                with open(TW_ANALYSIS_CACHE_FILE, "w", encoding="utf-8") as file:
+                    json.dump(cached, file, ensure_ascii=False)
+    except Exception as ex:
+        print(f"Error appending new stock to cache: {ex}", flush=True)
+
     return_stock = new_stock.copy()
     return_stock["name"] = format_stock_name(new_stock)
     return return_stock
@@ -3121,6 +3164,21 @@ def add_us_stock(req: AddStockRequest):
     }
     stocks.append(new_stock)
     write_us_stock_list(stocks)
+    
+    # Analyze the new US stock immediately and merge it into us_analysis_cache.json
+    try:
+        analysis_result = analyze_single_stock(new_stock)
+        if os.path.exists(US_ANALYSIS_CACHE_FILE):
+            with open(US_ANALYSIS_CACHE_FILE, "r", encoding="utf-8") as file:
+                cached = json.load(file)
+            if isinstance(cached, list):
+                cached = [row for row in cached if str(row.get("code", "")).upper() != code]
+                cached.append(analysis_result)
+                with open(US_ANALYSIS_CACHE_FILE, "w", encoding="utf-8") as file:
+                    json.dump(cached, file, ensure_ascii=False)
+    except Exception as ex:
+        print(f"Error appending new US stock to cache: {ex}", flush=True)
+
     return {
         **new_stock,
         "name_zh": profile.get("name_zh", ""),
