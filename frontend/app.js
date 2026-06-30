@@ -196,9 +196,9 @@ let activeTab = "tab-a"; // tab-a, tab-b, or tab-c
 let currentPricePerShare = 0;
 let oddLotInputSource = "amount";
 
-const APP_VERSION = "v1.6.54";
-const APP_REVISION_DATE = "260630";
-const APP_REVISION_TIME = "155425";
+const APP_VERSION = "v1.6.55";
+const APP_REVISION_DATE = "260701";
+const APP_REVISION_TIME = "072336";
 
 // Load lists from cloud storage
 async function loadStocksFromStorage() {

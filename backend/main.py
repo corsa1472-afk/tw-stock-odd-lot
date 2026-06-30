@@ -340,7 +340,6 @@ def fetch_twse_realtime_quotes(stocks):
         
     tz = datetime.timezone(datetime.timedelta(hours=8))
     now_tw = datetime.datetime.now(tz)
-    is_pre_opening = now_tw.weekday() < 5 and now_tw.time() < datetime.time(9, 0)
 
     for msg_array in batch_results:
         for item in msg_array:
@@ -348,7 +347,17 @@ def fetch_twse_realtime_quotes(stocks):
             if not code:
                 continue
             ref = _twse_number(item.get("y"))
-            if is_pre_opening:
+            
+            # Only consider pre-opening if the data date is today and time is before 9:00 AM (during market pre-opening auction)
+            item_date = item.get("d") or ""
+            today_str = now_tw.strftime("%Y%m%d")
+            is_pre_opening_item = (
+                now_tw.weekday() < 5 
+                and now_tw.time() < datetime.time(9, 0)
+                and item_date == today_str
+            )
+            
+            if is_pre_opening_item:
                 last = ref
                 open_val = None
                 high_val = None
@@ -1666,9 +1675,13 @@ def analyze_single_stock(stock):
         now_market = datetime.datetime.now(ZoneInfo("America/New_York"))
         clock_intraday = now_market.weekday() < 5 and (datetime.time(9, 30) <= now_market.time() <= datetime.time(16, 0))
         market_date = now_market.date()
+        is_before_open = now_market.time() < datetime.time(9, 30)
+        is_weekend = now_market.weekday() >= 5
     else:
         clock_intraday = now_tw.weekday() < 5 and (datetime.time(9, 0) <= now_tw.time() <= datetime.time(13, 35))
         market_date = now_tw.date()
+        is_before_open = now_tw.time() < datetime.time(9, 0)
+        is_weekend = now_tw.weekday() >= 5
     is_intraday = False
     
     try:
@@ -1712,8 +1725,10 @@ def analyze_single_stock(stock):
             price_change = None
             price_change_percent = 0.0
             if not df_daily.empty:
-                last_date_str = df_daily.index[-1].strftime("%Y-%m-%d")
-                if last_date_str == market_date:
+                last_date = df_daily.index[-1].date()
+                is_today_k = (last_date == market_date)
+                
+                if is_today_k or is_before_open or is_weekend:
                     ref_price = float(df_daily['Close'].iloc[-2]) if len(df_daily) >= 2 else float(df_daily['Close'].iloc[-1])
                 else:
                     ref_price = float(df_daily['Close'].iloc[-1])
@@ -1758,8 +1773,10 @@ def analyze_single_stock(stock):
         # Calculate reference price and price change
         reference_price = None
         if not df_daily.empty:
-            last_date_str = df_daily.index[-1].strftime("%Y-%m-%d")
-            if last_date_str == market_date:
+            last_date = df_daily.index[-1].date()
+            is_today_k = (last_date == market_date)
+            
+            if is_today_k or is_before_open or is_weekend:
                 reference_price = float(df_daily['Close'].iloc[-2]) if len(df_daily) >= 2 else float(df_daily['Close'].iloc[-1])
             else:
                 reference_price = float(df_daily['Close'].iloc[-1])
