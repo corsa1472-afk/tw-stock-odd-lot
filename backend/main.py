@@ -356,16 +356,27 @@ def fetch_twse_realtime_quotes(stocks):
                 volume_val = 0
             else:
                 last = _twse_number(item.get("z"))
-                if last is None:
+                if last is None or last <= 0:
                     # z is '-' during intraday auction; try best bid price first
                     bid_str = item.get("b", "")
                     if bid_str and bid_str != "-":
-                        first_bid = bid_str.split("_")[0]
-                        last = _twse_number(first_bid)
-                if last is None:
-                    # Still no price; try open price
+                        first_bid = _twse_number(bid_str.split("_")[0])
+                        if first_bid and first_bid > 0:
+                            last = first_bid
+                if last is None or last <= 0:
+                    # Try best ask price (useful during limit-down)
+                    ask_str = item.get("a", "")
+                    if ask_str and ask_str != "-":
+                        first_ask = _twse_number(ask_str.split("_")[0])
+                        if first_ask and first_ask > 0:
+                            last = first_ask
+                if last is None or last <= 0:
+                    # Try today's high price
+                    last = _twse_number(item.get("h"))
+                if last is None or last <= 0:
+                    # Try today's open price
                     last = _twse_number(item.get("o"))
-                if last is None:
+                if last is None or last <= 0:
                     last = ref
                 open_val = _twse_number(item.get("o"))
                 high_val = _twse_number(item.get("h"))
@@ -2712,18 +2723,7 @@ def get_stocks():
 def add_stock(req: AddStockRequest):
     input_val = req.code.strip()
     if not input_val:
-            raise HTTPException(status_code=400, detail="No market data available for this symbol")
-        
-    stocks = read_stock_list()
-    
-    # Check if we can search by stock name mapping first
-    from fetch_data import get_stock_name_map
-    stock_map = get_stock_name_map()
-    
-    code = ""
-    name = ""
-    if not input_val:
-            raise HTTPException(status_code=400, detail="No market data available for this symbol")
+        raise HTTPException(status_code=400, detail="No market data available for this symbol")
         
     stocks = read_stock_list()
     
@@ -2830,27 +2830,21 @@ def do_tw_analysis():
         if not quote:
             row["is_intraday"] = market_open
             continue
-        if quote.get("price") is not None:
-            if market_open:
-                # Only update current_price from TWSE MIS during trading hours
-                price = round(quote["price"], 2)
-                row["current_price"] = price
-                row["stop_loss_price"] = round(price * 0.95, 2)
-                prev_high = row.get("prev_high")
-                risk = price - row["stop_loss_price"]
-                if prev_high is not None and risk > 0:
-                    row["r_value"] = round((prev_high - price) / risk, 2)
-            else:
-                # After hours: keep yfinance current_price, just use it for change calc
-                price = row.get("current_price")
+        if quote.get("price") is not None and quote["price"] > 0:
+            price = round(quote["price"], 2)
+            row["current_price"] = price
+            row["stop_loss_price"] = round(price * 0.95, 2)
+            prev_high = row.get("prev_high")
+            risk = price - row["stop_loss_price"]
+            if prev_high is not None and risk > 0:
+                row["r_value"] = round((prev_high - price) / risk, 2)
             
-            if price is not None:
-                ref_price = quote.get("reference") or row.get("reference_price")
-                if ref_price:
-                    row["reference_price"] = ref_price
-                    row["price_change"] = round(price - ref_price, 2)
-                    row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
-        if market_open and quote.get("volume") is not None:
+            ref_price = quote.get("reference") or row.get("reference_price")
+            if ref_price:
+                row["reference_price"] = ref_price
+                row["price_change"] = round(price - ref_price, 2)
+                row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
+        if quote.get("volume") is not None and int(quote["volume"]) > 0:
             row["volume_lots"] = int(quote["volume"])
         if quote.get("limit_up"):
             row["limit_up"] = quote["limit_up"]
@@ -2983,28 +2977,23 @@ def overlay_realtime_quotes(stocks, cached_data, market_open):
         # Overlay the fresh quote if available
         quote = official_quotes.get(code)
         if quote:
-            if quote.get("price") is not None:
-                if market_open:
-                    # Only update current_price from TWSE MIS during trading hours
-                    price = round(quote["price"], 2)
-                    row["current_price"] = price
-                    row["stop_loss_price"] = round(price * 0.95, 2)
-                    
-                    prev_high = row.get("prev_high")
-                    risk = price - row["stop_loss_price"]
-                    if prev_high is not None and prev_high > 0 and risk > 0:
-                        row["r_value"] = round((prev_high - price) / risk, 2)
-                else:
-                    price = row.get("current_price")
+            if quote.get("price") is not None and quote["price"] > 0:
+                price = round(quote["price"], 2)
+                row["current_price"] = price
+                row["stop_loss_price"] = round(price * 0.95, 2)
                 
-                if price is not None:
-                    ref_price = quote.get("reference") or row.get("reference_price")
-                    if ref_price:
-                        row["reference_price"] = ref_price
-                        row["price_change"] = round(price - ref_price, 2)
-                        row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
+                prev_high = row.get("prev_high")
+                risk = price - row["stop_loss_price"]
+                if prev_high is not None and prev_high > 0 and risk > 0:
+                    row["r_value"] = round((prev_high - price) / risk, 2)
+                
+                ref_price = quote.get("reference") or row.get("reference_price")
+                if ref_price:
+                    row["reference_price"] = ref_price
+                    row["price_change"] = round(price - ref_price, 2)
+                    row["price_change_percent"] = round(((price - ref_price) / ref_price) * 100, 2)
             
-            if market_open and quote.get("volume") is not None:
+            if quote.get("volume") is not None and int(quote["volume"]) > 0:
                 row["volume_lots"] = int(quote["volume"])
             if quote.get("limit_up"):
                 row["limit_up"] = quote["limit_up"]

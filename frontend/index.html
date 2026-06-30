@@ -14,10 +14,10 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="index.css?v=v1.6.51">
+    <link rel="stylesheet" href="index.css?v=v1.6.52">
     <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script src="app.js?v=v1.6.51" defer></script>
+    <script src="app.js?v=v1.6.52" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -46,7 +46,7 @@
                 </div>
                 <div class="version-badge header-status-pill" title="代碼更新日期及版次">
                     <i class="fa-solid fa-code-branch" style="color: var(--color-warning);"></i>
-                    <span id="version-label">版次：v1.6.51 (260629|102740)</span>
+                    <span id="version-label">版次：v1.6.52 (260630|135759)</span>
                 </div>
             </div>
         </header>
@@ -354,7 +354,10 @@
                             </div>
                             <div class="stock-price-box">
                                 <span class="price-label" id="calc-price-label">當前股價</span>
-                                <span class="price-val" id="calc-stock-price">$0.00</span>
+                                <div style="display: flex; align-items: baseline;">
+                                    <span class="price-val" id="calc-stock-price">$0.00</span>
+                                    <span class="price-change-val" id="calc-stock-change" style="font-size:0.9rem; font-weight:700; margin-left:8px; font-family:var(--font-outfit);">--</span>
+                                </div>
                             </div>
                         </div>
 

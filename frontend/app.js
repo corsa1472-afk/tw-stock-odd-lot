@@ -26,6 +26,8 @@ async function initApiBase() {
 }
 
 let allStocks = [];
+let isScanRunning = false;
+let isUSScanRunning = false;
 
 // Global JS Tooltip logic
 let tooltipHoveredElement = null;
@@ -194,9 +196,9 @@ let activeTab = "tab-a"; // tab-a, tab-b, or tab-c
 let currentPricePerShare = 0;
 let oddLotInputSource = "amount";
 
-const APP_VERSION = "v1.6.51";
-const APP_REVISION_DATE = "260629";
-const APP_REVISION_TIME = "102740";
+const APP_VERSION = "v1.6.52";
+const APP_REVISION_DATE = "260630";
+const APP_REVISION_TIME = "135759";
 
 // Load lists from cloud storage
 async function loadStocksFromStorage() {
@@ -1247,6 +1249,9 @@ async function fetchAndAnalyzeStocks(isManualRefresh = false, isSilent = false) 
         
         const data = await res.json();
         
+        // Save the FULL unfiltered list to prevent permanent deletion during saveStocksToStorage
+        currentStocksData = data;
+        
         const popularStocks = data.filter(s => s.added_by === "popular" || !s.added_by);
         const userStocks = data.filter(s => s.added_by && s.added_by !== "popular");
         totalPopularCount = popularStocks.length;
@@ -1275,7 +1280,6 @@ async function fetchAndAnalyzeStocks(isManualRefresh = false, isSilent = false) 
             return a.code.localeCompare(b.code);
         });
         
-        currentStocksData = filtered;
         renderStockTable(filtered);
         
         // Update popular stocks update time
@@ -1831,6 +1835,34 @@ function applyPriceStyling(element, price, referencePrice, code, officialLimitUp
 function updateCalcStockPrice(price, referencePrice, code, officialLimitUp = null) {
     calcStockPrice.textContent = formatPrice(price);
     applyPriceStyling(calcStockPrice, price, referencePrice, code, officialLimitUp);
+    
+    const changeLabel = document.getElementById("calc-stock-change");
+    if (changeLabel) {
+        if (price !== undefined && price !== null && referencePrice !== undefined && referencePrice !== null && referencePrice > 0) {
+            const change = price - referencePrice;
+            const percent = (change / referencePrice) * 100;
+            const sign = change > 0 ? "+" : "";
+            changeLabel.textContent = `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
+            
+            const priceStyle = getPriceStyleAndClass(price, referencePrice, code, officialLimitUp);
+            changeLabel.className = "price-change-val " + priceStyle.className;
+            if (priceStyle.style) {
+                if (priceStyle.className.includes("limit-up")) {
+                    changeLabel.style.color = "var(--color-danger)";
+                } else if (priceStyle.className.includes("limit-down")) {
+                    changeLabel.style.color = "var(--color-success)";
+                } else {
+                    changeLabel.style.color = "";
+                }
+            } else {
+                changeLabel.style.color = "";
+            }
+        } else {
+            changeLabel.textContent = "--";
+            changeLabel.className = "price-change-val flat-gray";
+            changeLabel.style.color = "";
+        }
+    }
 }
 
 function formatChangeCell(change, percent) {
@@ -2140,6 +2172,7 @@ async function pollScanStatus() {
         const status = await res.json();
         
         if (status.active) {
+            isScanRunning = true;
             scanBtn.disabled = true;
             scanBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 掃描中...`;
             scanStatusLabel.textContent = `掃描進度: ${status.progress} / ${status.total} 檔 (篩選出 ${potentialStocksData.length} 檔)`;
@@ -2149,7 +2182,8 @@ async function pollScanStatus() {
             scanProgressText.textContent = `${status.progress} / ${status.total} 檔 (${pct}%)`;
             scanProgressBar.style.width = `${pct}%`;
         } else {
-            const wasActive = !scanProgressBox.classList.contains("hidden");
+            const wasActive = isScanRunning || !scanProgressBox.classList.contains("hidden");
+            isScanRunning = false;
             scanBtn.disabled = false;
             scanBtn.innerHTML = `<i class="fa-solid fa-radar"></i> 重新掃描全市場`;
             const lastUpdatedStr = status.last_updated ? `<br>最後更新: ${status.last_updated}` : '';
@@ -2198,6 +2232,7 @@ async function pollUSScanStatus() {
         const status = await res.json();
         
         if (status.active) {
+            isUSScanRunning = true;
             scanUsBtn.disabled = true;
             scanUsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 掃描中...`;
             scanUsStatusLabel.textContent = `掃描進度: ${status.progress} / ${status.total} 檔 (篩選出 ${status.potentials_count || 0} 檔)`;
@@ -2207,7 +2242,8 @@ async function pollUSScanStatus() {
             scanUsProgressText.textContent = `${status.progress} / ${status.total} 檔 (${pct}%)`;
             scanUsProgressBar.style.width = `${pct}%`;
         } else {
-            const wasActive = !scanUsProgressBox.classList.contains("hidden");
+            const wasActive = isUSScanRunning || !scanUsProgressBox.classList.contains("hidden");
+            isUSScanRunning = false;
             scanUsBtn.disabled = false;
             scanUsBtn.innerHTML = `<i class="fa-solid fa-radar"></i> 掃描S&P 500/Nasdaq 100`;
             usScanTotal = status.total || 0;
@@ -4448,6 +4484,9 @@ async function fetchAndRenderMonitors() {
                         symbol: o.symbol || (o.code.length === 4 ? o.code + ".TW" : o.code + ".TWO"),
                         name: o.name,
                         current_price: o.last_price || o.buy_price,
+                        reference_price: o.reference_price || o.buy_price || o.last_price,
+                        limit_up: o.limit_up,
+                        limit_down: o.limit_down,
                         prev_high: o.stop_profit_price,
                         system_a_signal: false,
                         daily_trend_ok: false,
@@ -4485,7 +4524,7 @@ async function fetchAndRenderMonitors() {
             const foundInList = currentStocksData.find(s => String(s.code).trim() === String(o.code).trim()) || 
                                 potentialStocksData.find(s => String(s.code).trim() === String(o.code).trim());
             let lastPrice = o.last_price || o.buy_price;
-            let refPrice = o.reference_price || lastPrice;
+            let refPrice = o.reference_price || o.buy_price || lastPrice;
             if (foundInList && foundInList.current_price !== undefined && foundInList.current_price !== null && foundInList.current_price > 0) {
                 lastPrice = foundInList.current_price;
                 if (foundInList.reference_price !== undefined && foundInList.reference_price !== null && foundInList.reference_price > 0) {
@@ -4680,6 +4719,9 @@ function renderUSMonitors(orders) {
                 industry: o.industry || "",
                 market: "US",
                 current_price: o.last_price || o.buy_price,
+                reference_price: o.reference_price || o.buy_price || o.last_price,
+                limit_up: o.limit_up,
+                limit_down: o.limit_down,
                 prev_high: o.stop_profit_price,
                 system_a_signal: false,
                 daily_trend_ok: false,
@@ -4692,7 +4734,7 @@ function renderUSMonitors(orders) {
         const buyStateColor = isBuyAction ? "var(--color-danger)" : "var(--text-muted)";
         
         const lastPrice = o.last_price || o.buy_price;
-        const refPrice = o.reference_price || lastPrice;
+        const refPrice = o.reference_price || o.buy_price || lastPrice;
         const change = lastPrice - refPrice;
         const percent = refPrice > 0 ? (change / refPrice) * 100 : 0.0;
         
