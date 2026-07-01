@@ -196,9 +196,9 @@ let activeTab = "tab-a"; // tab-a, tab-b, or tab-c
 let currentPricePerShare = 0;
 let oddLotInputSource = "amount";
 
-const APP_VERSION = "v1.6.55";
+const APP_VERSION = "v1.6.56";
 const APP_REVISION_DATE = "260701";
-const APP_REVISION_TIME = "072336";
+const APP_REVISION_TIME = "092940";
 
 // Load lists from cloud storage
 async function loadStocksFromStorage() {
@@ -2721,9 +2721,6 @@ async function fetchAndDrawCharts(code, isSilent = false) {
         document.getElementById("institutional-chart").innerHTML = `<div class="spinner" style="margin: 7rem auto;"></div>`;
         document.getElementById("chip-concentration-chart").innerHTML = `<div class="spinner" style="margin: 7rem auto;"></div>`;
         document.getElementById("major-holder-chart").innerHTML = `<div class="spinner" style="margin: 7rem auto;"></div>`;
-    } else {
-        if (intradayChart) { intradayChart.dispose(); intradayChart = null; }
-        if (prevIntradayChart) { prevIntradayChart.dispose(); prevIntradayChart = null; }
     }
 
     try {
@@ -2884,14 +2881,12 @@ async function fetchAndDrawCharts(code, isSilent = false) {
         
         renderIntradayChart(data.intraday, yesterdayClose, data.intraday_session);
         renderPrevIntradayChart(data.prev_intraday, prevYesterdayClose, data.prev_intraday_session);
-        if (!isSilent) {
-            renderKlineChart(data.kline);
-            renderKdChart(data.kd);
-            renderHourlyKlineChart(data.kd);
-            renderInstitutionalChart(data.institutional, data.is_intraday, data.intraday_date);
-            renderChipConcentrationChart(data.institutional, data.is_intraday, data.intraday_date);
-            renderMajorHolderChart(data.major_holders);
-        }
+        renderKlineChart(data.kline);
+        renderKdChart(data.kd);
+        renderHourlyKlineChart(data.kd);
+        renderInstitutionalChart(data.institutional, data.is_intraday, data.intraday_date);
+        renderChipConcentrationChart(data.institutional, data.is_intraday, data.intraday_date);
+        renderMajorHolderChart(data.major_holders);
         
     } catch (e) {
         console.error(e);
@@ -2982,16 +2977,18 @@ function generateIntradayTimeline(session = null) {
 // Chart 1: Intraday Line Chart (今日走勢)
 function renderIntradayChart(intradayList, yesterdayClose, session = null) {
     const chartDom = document.getElementById("intraday-chart");
-    if (intradayChart) {
-        intradayChart.dispose();
-    }
-    
     if (!intradayList || intradayList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">最近交易日無即時交易數據</div>`;
+        if (intradayChart) {
+            intradayChart.dispose();
+            intradayChart = null;
+        }
         return;
     }
     
-    intradayChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!intradayChart) {
+        intradayChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     
     const timeline = generateIntradayTimeline(session);
     const usesMinuteIndex = intradayList.some(item => Number.isInteger(item.minute_index));
@@ -3251,22 +3248,24 @@ function renderIntradayChart(intradayList, yesterdayClose, session = null) {
         ]
     };
     
-    intradayChart.setOption(option);
+    intradayChart.setOption(option, true);
 }
 
 // Chart 1.5: Previous Intraday Line Chart (前一交易日走勢)
 function renderPrevIntradayChart(prevIntradayList, yesterdayClose, session = null) {
     const chartDom = document.getElementById("prev-intraday-chart");
-    if (prevIntradayChart) {
-        prevIntradayChart.dispose();
-    }
-    
     if (!prevIntradayList || prevIntradayList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">前一交易日無即時交易數據</div>`;
+        if (prevIntradayChart) {
+            prevIntradayChart.dispose();
+            prevIntradayChart = null;
+        }
         return;
     }
     
-    prevIntradayChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!prevIntradayChart) {
+        prevIntradayChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     
     const timeline = generateIntradayTimeline(session);
     const usesMinuteIndex = prevIntradayList.some(item => Number.isInteger(item.minute_index));
@@ -3526,22 +3525,24 @@ function renderPrevIntradayChart(prevIntradayList, yesterdayClose, session = nul
         ]
     };
     
-    prevIntradayChart.setOption(option);
+    prevIntradayChart.setOption(option, true);
 }
 
 // Chart 2: Candlestick + Volume (日K線與成交量，疊加 SMA5、SMA20 及 BBAND)
 function renderKlineChart(klineList) {
     const chartDom = document.getElementById("kline-chart");
-    if (klineChart) {
-        klineChart.dispose();
-    }
-    
     if (!klineList || klineList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">無日K線數據</div>`;
+        if (klineChart) {
+            klineChart.dispose();
+            klineChart = null;
+        }
         return;
     }
     
-    klineChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!klineChart) {
+        klineChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     
     const dates = klineList.map(item => item.date);
     const values = klineList.map(item => [item.open, item.close, item.low, item.high]);
@@ -3735,22 +3736,24 @@ function renderKlineChart(klineList) {
         ]
     };
     
-    klineChart.setOption(option);
+    klineChart.setOption(option, true);
 }
 
 // Chart 3: KD Double Lines (60分K KD值曲線)
 function renderKdChart(kdList) {
     const chartDom = document.getElementById("kd-chart");
-    if (kdChart) {
-        kdChart.dispose();
-    }
-    
     if (!kdList || kdList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">無 KD 技術指標數據</div>`;
+        if (kdChart) {
+            kdChart.dispose();
+            kdChart = null;
+        }
         return;
     }
     
-    kdChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!kdChart) {
+        kdChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     
     const times = kdList.map(item => item.time);
     const kValues = kdList.map(item => item.k);
@@ -3892,24 +3895,26 @@ function renderKdChart(kdList) {
         ]
     };
     
-    kdChart.setOption(option);
+    kdChart.setOption(option, true);
 }
 
 // Chart 3.5: Hourly K-Line Chart (60分K線圖，併入 SMA60)
 function renderHourlyKlineChart(kdList) {
     const chartDom = document.getElementById("hourly-kline-chart");
-    if (hourlyKlineChart) {
-        hourlyKlineChart.dispose();
-    }
-    
     const validKlineList = kdList.filter(item => item.open !== undefined && item.close !== undefined);
     
     if (!validKlineList || validKlineList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 3rem 0; font-size:0.8rem;">無60分K線數據</div>`;
+        if (hourlyKlineChart) {
+            hourlyKlineChart.dispose();
+            hourlyKlineChart = null;
+        }
         return;
     }
     
-    hourlyKlineChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!hourlyKlineChart) {
+        hourlyKlineChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     
     const dates = validKlineList.map(item => item.time);
     const values = validKlineList.map(item => [item.open, item.close, item.low, item.high]);
@@ -3985,22 +3990,24 @@ function renderHourlyKlineChart(kdList) {
         ]
     };
     
-    hourlyKlineChart.setOption(option);
+    hourlyKlineChart.setOption(option, true);
 }
 
 // Chart 4: Institutional Net Buy/Sell Multi-Bar Chart (法人買賣超)
 function renderInstitutionalChart(instList, isIntraday = false, intradayDate = "") {
     const chartDom = document.getElementById("institutional-chart");
-    if (institutionalChart) {
-        institutionalChart.dispose();
-    }
-    
     if (!instList || instList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">無法人買賣超數據</div>`;
+        if (institutionalChart) {
+            institutionalChart.dispose();
+            institutionalChart = null;
+        }
         return;
     }
     
-    institutionalChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!institutionalChart) {
+        institutionalChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     const chartList = [...instList];
     if (isIntraday && intradayDate && !chartList.some(item => item.date === intradayDate)) {
         chartList.push({
@@ -4130,22 +4137,24 @@ function renderInstitutionalChart(instList, isIntraday = false, intradayDate = "
         ]
     };
     
-    institutionalChart.setOption(option);
+    institutionalChart.setOption(option, true);
 }
 
 // Chart 5: Chip Concentration Chart (近20日籌碼集中度)
 function renderChipConcentrationChart(instList, isIntraday = false, intradayDate = "") {
     const chartDom = document.getElementById("chip-concentration-chart");
-    if (chipConcentrationChart) {
-        chipConcentrationChart.dispose();
-    }
-    
     if (!instList || instList.length === 0) {
         chartDom.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 5rem 0;">無籌碼集中度數據</div>`;
+        if (chipConcentrationChart) {
+            chipConcentrationChart.dispose();
+            chipConcentrationChart = null;
+        }
         return;
     }
     
-    chipConcentrationChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    if (!chipConcentrationChart) {
+        chipConcentrationChart = echarts.init(chartDom, "dark", { backgroundColor: "transparent" });
+    }
     const chartList = [...instList];
     if (isIntraday && intradayDate && !chartList.some(item => item.date === intradayDate)) {
         chartList.push({
@@ -4221,23 +4230,28 @@ function renderChipConcentrationChart(instList, isIntraday = false, intradayDate
         ]
     };
     
-    chipConcentrationChart.setOption(option);
+    chipConcentrationChart.setOption(option, true);
 }
 
 function renderMajorHolderChart(holderList) {
     const chartDom = document.getElementById("major-holder-chart");
-    if (majorHolderChart) majorHolderChart.dispose();
     const holderRows = (holderList || [])
         .filter(item => item?.date && (item.ratio !== null || item.retail_ratio !== null))
         .sort((a, b) => String(a.date).localeCompare(String(b.date)));
     if (holderRows.length === 0) {
         chartDom.innerHTML = "";
+        if (majorHolderChart) {
+            majorHolderChart.dispose();
+            majorHolderChart = null;
+        }
         return;
     }
     const axisDates = holderRows.map(item => item.date);
     const majorRatios = holderRows.map(item => item.ratio);
     const retailRatios = holderRows.map(item => item.retail_ratio);
-    majorHolderChart = echarts.init(chartDom, "dark", {backgroundColor: "transparent"});
+    if (!majorHolderChart) {
+        majorHolderChart = echarts.init(chartDom, "dark", {backgroundColor: "transparent"});
+    }
     majorHolderChart.setOption({
         color: ["#f43f5e", "#22c55e"],
         legend: {
@@ -4322,7 +4336,7 @@ function renderMajorHolderChart(holderList) {
                 }
             }
         ]
-    });
+    }, true);
 }
 
 // Handle Add Stock Action

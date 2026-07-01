@@ -463,6 +463,7 @@ def fetch_fallback_quotes_from_yahoo(stocks):
                     # Fallback reference to open if no previous close
                     reference = open_val
                     
+                actual_date_str = ticker_df.index[-1].strftime("%Y%m%d")
                 result[code] = {
                     "price": price,
                     "open": open_val,
@@ -470,8 +471,8 @@ def fetch_fallback_quotes_from_yahoo(stocks):
                     "low": low_val,
                     "reference": reference,
                     "volume": volume_lots,
-                    "time": time_str,
-                    "date": date_str,
+                    "time": time_str if actual_date_str == date_str else "13:30",
+                    "date": actual_date_str,
                     "source": "Yahoo_Finance",
                 }
     except Exception as e:
@@ -4550,8 +4551,40 @@ def get_stock_chart_data(code: str, force: bool = False):
             df_intra['date_str'] = df_intra['market_dt'].map(lambda x: x.strftime("%Y-%m-%d"))
             unique_dates = sorted(df_intra['date_str'].unique())
             
-            if len(unique_dates) >= 1:
-                latest_date = unique_dates[-1]
+            today_str = now_tw.strftime("%Y-%m-%d")
+            is_tw_trading_active = now_tw.weekday() < 5 and (now_tw.time() >= datetime.time(9, 0))
+            quote_is_today = False
+            if official_quote and official_quote.get("price") is not None:
+                quote_date = str(official_quote.get("date") or "")
+                if len(quote_date) == 8:
+                    quote_date_str = f"{quote_date[:4]}-{quote_date[4:6]}-{quote_date[6:8]}"
+                    if quote_date_str == today_str:
+                        quote_is_today = True
+
+            if is_us:
+                ny_today_str = now_market.strftime("%Y-%m-%d")
+                is_us_trading_active = now_market.weekday() < 5 and (now_market.time() >= datetime.time(9, 30))
+                if is_us_trading_active:
+                    latest_date = ny_today_str
+                    remaining_dates = [d for d in unique_dates if d < latest_date]
+                    prev_date = remaining_dates[-1] if remaining_dates else (unique_dates[-2] if len(unique_dates) >= 2 else "")
+                else:
+                    if len(unique_dates) >= 1:
+                        latest_date = unique_dates[-1]
+                    if len(unique_dates) >= 2:
+                        prev_date = unique_dates[-2]
+            else:
+                if is_tw_trading_active or quote_is_today:
+                    latest_date = today_str
+                    remaining_dates = [d for d in unique_dates if d < latest_date]
+                    prev_date = remaining_dates[-1] if remaining_dates else (unique_dates[-2] if len(unique_dates) >= 2 else "")
+                else:
+                    if len(unique_dates) >= 1:
+                        latest_date = unique_dates[-1]
+                    if len(unique_dates) >= 2:
+                        prev_date = unique_dates[-2]
+
+            if latest_date:
                 intraday_session = session_metadata(latest_date)
                 df_latest = df_intra[df_intra['date_str'] == latest_date]
                 for idx, row in df_latest.iterrows():
@@ -4569,8 +4602,7 @@ def get_stock_chart_data(code: str, force: bool = False):
                         "volume": int(row["Volume"]) if not pd.isna(row["Volume"]) else 0
                     })
                     
-            if len(unique_dates) >= 2:
-                prev_date = unique_dates[-2]
+            if prev_date:
                 prev_intraday_session = session_metadata(prev_date)
                 df_prev = df_intra[df_intra['date_str'] == prev_date]
                 for idx, row in df_prev.iterrows():
@@ -4747,7 +4779,7 @@ def get_stock_chart_data(code: str, force: bool = False):
 
             def _inject_open_price(intra_list, daily_df, date_str):
                 """Ensure there is a 09:00 bar with the official daily open price."""
-                if not intra_list or not date_str or daily_df.empty:
+                if not date_str or daily_df.empty:
                     return
                 daily_df_copy = daily_df.copy()
                 daily_df_copy['date_str'] = daily_df_copy.index.map(lambda x: x.strftime("%Y-%m-%d"))
